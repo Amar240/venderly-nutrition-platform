@@ -1,0 +1,432 @@
+// Woodbridge Nutrition Platform — full schema for ALL entities (phase 1).
+// Later phases must never migrate destructively, so every entity exists now.
+//
+// Domain rules enforced structurally here (CLAUDE.md):
+//   1. Money is integer cents. Every money column ends in `Cents`.
+//   2. The ledger is append-only (no updatedAt on LedgerEntry). Corrections are
+//      NEW offsetting entries linked via `correctsEntryId`.
+//   3. Transfers share one `transferRef`.
+//   4. `idempotencyKey` is unique (nullable — Postgres allows multiple NULLs).
+//   6. Meal uniqueness: one event per student + service date + meal type.
+//   9. Student holds ONLY minimal fields — no race/ethnicity/gender/birthdate.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  GUARDIAN
+  CASHIER
+  SCHOOL_STAFF
+  DISTRICT_ADMIN
+  SUPER_ADMIN
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+}
+
+enum LedgerEntryType {
+  DEPOSIT
+  MEAL_CHARGE
+  ALACARTE_CHARGE
+  TRANSFER_DEBIT
+  TRANSFER_CREDIT
+  ADJUSTMENT
+  REFUND
+  CORRECTION
+}
+
+enum ActorType {
+  GUARDIAN
+  USER
+  SYSTEM
+}
+
+// Derived pricing INPUT — never an eligibility record (open-decisions.md #2).
+// Read only inside server/meals pricing logic; never exposed to POS/guardians.
+enum PriceTier {
+  FREE
+  REDUCED
+  PAID
+}
+
+// Where a student's price tier came from (production may derive from FRAM).
+enum PricingSource {
+  DISTRICT_EXPORT
+  MANUAL
+  DEFAULT
+}
+
+enum NotificationType {
+  LOW_BALANCE
+  DEPOSIT_COMPLETED
+  TRANSFER_COMPLETED
+}
+
+enum NotificationChannel {
+  IN_APP
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Directory: district / school / student
+// ---------------------------------------------------------------------------
+
+model District {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schools        School[]
+  students       Student[]
+  users          User[]
+  items          Item[]
+  pricingConfigs PricingConfig[]
+  importRuns     ImportRun[]
+  notifications  Notification[]
+}
+
+model School {
+  id         String   @id @default(cuid())
+  districtId String
+  name       String
+  code       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  district       District        @relation(fields: [districtId], references: [id])
+  students       Student[]
+  userSchools    UserSchool[]
+  items          Item[]
+  pricingConfigs PricingConfig[]
+  notifications  Notification[]
+
+  @@unique([districtId, code])
+}
+
+// Data minimization (rule 9): ONLY these fields. Do not add race, ethnicity,
+// gender, or birthdate — those columns must never exist.
+model Student {
+  id               String           @id @default(cuid())
+  districtId       String
+  schoolId         String
+  studentNumber    String
+  firstName        String
+  lastName         String
+  middleName       String? // never displayed by default
+  grade            String
+  enrollmentStatus EnrollmentStatus @default(ACTIVE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  district      District          @relation(fields: [districtId], references: [id])
+  school        School            @relation(fields: [schoolId], references: [id])
+  account       Account?
+  pricing       StudentPricing? // pricing INPUT only — not part of the rule-9 field list
+  guardianLinks GuardianStudent[]
+  mealEvents    MealEvent[]
+  itemSales     ItemSale[]
+
+  @@unique([districtId, studentNumber])
+  @@index([schoolId])
+}
+
+// Pricing INPUT for a student, kept OFF the Student record so rule 9's field
+// list stands unamended. Read ONLY inside server/meals pricing logic — never in
+// a POS or guardian query, response, or log. Tier changes are auditable.
+model StudentPricing {
+  id            String        @id @default(cuid())
+  studentId     String        @unique
+  tier          PriceTier     @default(FREE)
+  effectiveFrom DateTime      @default(now())
+  source        PricingSource @default(DEFAULT)
+  createdAt     DateTime      @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Household: guardian (auth principal) + verified guardian-student link
+// ---------------------------------------------------------------------------
+
+model Guardian {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  phone            String?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  studentLinks  GuardianStudent[]
+  notifications Notification[]
+}
+
+model GuardianStudent {
+  id           String   @id @default(cuid())
+  guardianId   String
+  studentId    String
+  relationship String?
+  createdAt    DateTime @default(now())
+
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, studentId])
+  @@index([studentId])
+}
+
+// ---------------------------------------------------------------------------
+// Staff auth principal + school scope
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  role             Role
+  districtId       String
+  totpSecret       String? // pre-enrolled for staff so the demo shows MFA
+  totpEnrolledAt   DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  district District     @relation(fields: [districtId], references: [id])
+  schools  UserSchool[]
+}
+
+model UserSchool {
+  id       String @id @default(cuid())
+  userId   String
+  schoolId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId])
+}
+
+// ---------------------------------------------------------------------------
+// Money: account + append-only ledger
+// ---------------------------------------------------------------------------
+
+model Account {
+  id          String   @id @default(cuid())
+  studentId   String   @unique
+  balanceCents Int     @default(0) // cached optimization; ledger is source of truth
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  ledgerEntries LedgerEntry[]
+}
+
+// Append-only: NO updatedAt, never UPDATE/DELETE. Corrections are new rows.
+model LedgerEntry {
+  id             String          @id @default(cuid())
+  accountId      String
+  type           LedgerEntryType
+  amountCents    Int // signed: positive credit, negative debit
+  description    String
+  idempotencyKey String?         @unique
+  transferRef    String? // links a debit+credit transfer pair
+  correctsEntryId String?
+  actorType      ActorType
+  actorId        String?
+  createdAt      DateTime        @default(now())
+
+  account       Account       @relation(fields: [accountId], references: [id])
+  correctsEntry LedgerEntry?  @relation("Corrections", fields: [correctsEntryId], references: [id])
+  correctedBy   LedgerEntry[] @relation("Corrections")
+  mealEvent     MealEvent?
+  itemSale      ItemSale?
+
+  @@index([accountId])
+  @@index([transferRef])
+}
+
+// ---------------------------------------------------------------------------
+// Meals + a-la-carte
+// ---------------------------------------------------------------------------
+
+model MealEvent {
+  id            String   @id @default(cuid())
+  studentId     String
+  serviceDate   DateTime @db.Date
+  mealType      MealType
+  priceCents    Int
+  ledgerEntryId String?  @unique
+  overrideReason String?
+  createdAt     DateTime @default(now())
+
+  student     Student      @relation(fields: [studentId], references: [id])
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
+
+  @@unique([studentId, serviceDate, mealType])
+  @@index([serviceDate])
+}
+
+model Item {
+  id         String   @id @default(cuid())
+  districtId String
+  schoolId   String? // null = district-wide item
+  name       String
+  priceCents Int
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  district District @relation(fields: [districtId], references: [id])
+  school   School?  @relation(fields: [schoolId], references: [id])
+  sales    ItemSale[]
+}
+
+model ItemSale {
+  id               String   @id @default(cuid())
+  itemId           String
+  studentId        String
+  priceCentsAtSale Int // price captured at time of purchase
+  ledgerEntryId    String?  @unique
+  createdAt        DateTime @default(now())
+
+  item        Item         @relation(fields: [itemId], references: [id])
+  student     Student      @relation(fields: [studentId], references: [id])
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
+
+  @@index([studentId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit + import + pricing config
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorType   ActorType
+  actorId     String?
+  action      String
+  subjectType String?
+  subjectId   String?
+  districtId  String?
+  schoolId    String?
+  reason      String?
+  beforeJson  Json?
+  afterJson   Json?
+  ip          String?
+  createdAt   DateTime  @default(now())
+
+  @@index([subjectType, subjectId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ImportRun {
+  id           String   @id @default(cuid())
+  districtId   String
+  source       String
+  operator     String
+  checksum     String?
+  status       String
+  createdCount Int      @default(0)
+  updatedCount Int      @default(0)
+  inactiveCount Int     @default(0)
+  skippedCount Int      @default(0)
+  failedCount  Int      @default(0)
+  errorsJson   Json?
+  createdAt    DateTime @default(now())
+
+  district District @relation(fields: [districtId], references: [id])
+}
+
+// Three configurable pricing paths per meal (PRD business rules; phase 5 §17).
+// Free tier is a configurable field too (normally 0). CEP default = all 0.
+model PricingConfig {
+  id                      String   @id @default(cuid())
+  districtId              String
+  schoolId               String? // null = district-wide default
+  breakfastFreeCents      Int      @default(0)
+  breakfastReducedCents   Int      @default(0)
+  breakfastPaidCents      Int      @default(0)
+  lunchFreeCents          Int      @default(0)
+  lunchReducedCents       Int      @default(0)
+  lunchPaidCents          Int      @default(0)
+  lowBalanceThresholdCents Int     @default(1000)
+  cepEnabled              Boolean  @default(true) // Woodbridge demo default: CEP $0
+  effectiveFrom           DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  district District @relation(fields: [districtId], references: [id])
+  school   School?  @relation(fields: [schoolId], references: [id])
+
+  @@unique([districtId, schoolId])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (phase 5 builds generation + the NotificationPort; schema now)
+// In-app only for the pilot. Guardians see them in a portal inbox; admins view
+// the delivery log — the evidence trail for "did the parent get told?".
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String           @id @default(cuid())
+  districtId String
+  schoolId   String?
+  guardianId String
+  type       NotificationType
+  title      String
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  district   District               @relation(fields: [districtId], references: [id])
+  school     School?                @relation(fields: [schoolId], references: [id])
+  guardian   Guardian               @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([guardianId])
+  @@index([districtId])
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(cuid())
+  notificationId String
+  channel        NotificationChannel        @default(IN_APP)
+  status         NotificationDeliveryStatus @default(PENDING)
+  detail         String?
+  createdAt      DateTime                   @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+}

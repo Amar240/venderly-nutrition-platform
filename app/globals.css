@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — docs/design-system.md is binding. After phase 1 no component
+ * may hardcode a colour, font size, or spacing value. Spacing and font tokens
+ * are density-scaled by `--density`, set per surface on the route-group layout.
+ * Custom properties substitute lazily, so `var(--space-4)` recomputes against
+ * whatever `--density` the using element inherits.
+ */
+
+:root {
+  /* Colour tokens */
+  --ink: #0f1f33;
+  --ink-muted: #24405f;
+  --brand: #0d6e63;
+  --brand-wash: #e3f2ef;
+  --surface: #faf8f4;
+  --surface-card: #ffffff;
+  --border: #e3dfd7;
+  --success: #2e7d4f;
+  --success-wash: #e6f1ea;
+  --warn: #b5730b;
+  --warn-wash: #f7ecd9;
+  --danger: #b3261e;
+  --danger-wash: #f7e2e0;
+
+  /* Typography */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+
+  /* Density multiplier — overridden per surface below */
+  --density: 1;
+  --touch-min: 44px;
+
+  /* Type scale (12/14/16/20/24/30/38) × density */
+  --text-xs: calc(12px * var(--density));
+  --text-sm: calc(14px * var(--density));
+  --text-base: calc(16px * var(--density));
+  --text-lg: calc(20px * var(--density));
+  --text-xl: calc(24px * var(--density));
+  --text-2xl: calc(30px * var(--density));
+  --text-3xl: calc(38px * var(--density));
+
+  /* Spacing (4px scale) × density */
+  --space-1: calc(4px * var(--density));
+  --space-2: calc(8px * var(--density));
+  --space-3: calc(12px * var(--density));
+  --space-4: calc(16px * var(--density));
+  --space-6: calc(24px * var(--density));
+  --space-8: calc(32px * var(--density));
+  --space-12: calc(48px * var(--density));
+
+  /* Shape — fixed, not density-scaled */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+}
+
+/* Per-surface density (docs/design-system.md density table). */
+[data-density="guardian"] {
+  --density: 1;
+  --touch-min: 44px;
+}
+[data-density="pos"] {
+  --density: 1.4;
+  --touch-min: 48px;
+}
+[data-density="admin"] {
+  --density: 0.85;
+  --touch-min: 44px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  /* Money and any numeric column aligns with tabular numerals. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible focus ring on everything focusable — never remove without a
+     replacement (design-system.md accessibility rules). */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: var(--radius-control);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
