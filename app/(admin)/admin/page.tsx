@@ -1,57 +1,82 @@
 import { getAppSession } from "@/server/auth/session";
-import { prisma } from "@/server/db/client";
-import { scopeToSchools } from "@/server/auth/rbac";
+import { districtDashboard } from "@/server/reports/dashboard";
+import { MoneyDisplay } from "@/components/ui/money";
 
 /**
- * Admin overview. Counts are scoped to the schools the staff session may see
- * (scopeToSchools) — a SUPER_ADMIN sees the whole district, others only their
- * assigned schools. No eligibility anywhere.
+ * District dashboard. Meal counts (served vs overrides, kept separate per D-10),
+ * deposits, adjustments, and low/negative-balance exceptions per school — all
+ * derived from the ledger, scoped to the session. No eligibility / tier.
  */
-export default async function AdminHomePage() {
+export default async function AdminDashboardPage() {
   const session = await getAppSession();
   if (!session || session.principalType !== "staff") return null;
+  const dash = await districtDashboard(session);
+  const t = dash.totals;
 
-  const scope = scopeToSchools(session);
-  const schoolWhere = scope.schoolId
-    ? { districtId: scope.districtId, id: scope.schoolId }
-    : { districtId: scope.districtId };
-  const studentWhere = scope.schoolId
-    ? { districtId: scope.districtId, schoolId: scope.schoolId }
-    : { districtId: scope.districtId };
-
-  const [schoolCount, studentCount, activeStudentCount] = await Promise.all([
-    prisma.school.count({ where: schoolWhere }),
-    prisma.student.count({ where: studentWhere }),
-    prisma.student.count({
-      where: { ...studentWhere, enrollmentStatus: "ACTIVE" },
-    }),
-  ]);
-
-  const stats = [
-    { label: "Schools in scope", value: schoolCount },
-    { label: "Students in scope", value: studentCount },
-    { label: "Active students", value: activeStudentCount },
+  const stats: { label: string; value: React.ReactNode }[] = [
+    { label: "Meals served", value: t.mealsServed.toLocaleString() },
+    { label: "Overrides (separate)", value: t.mealOverrides.toLocaleString() },
+    { label: "Deposits", value: <MoneyDisplay amountCents={t.depositsCents} /> },
+    { label: "Adjustments", value: `${t.adjustmentsCount}` },
+    { label: "Low balance", value: t.lowBalanceCount.toLocaleString() },
+    { label: "Negative balance", value: t.negativeBalanceCount.toLocaleString() },
   ];
 
   return (
     <section>
       <h1 className="text-2xl font-medium text-ink">Overview</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Summary for the schools your role can access.
+        {dash.periodLabel} · figures derived from the ledger. Low-balance is a current count.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-card border border-border bg-surface-card p-6"
-          >
+          <div key={s.label} className="rounded-card border border-border bg-surface-card p-4">
             <div className="text-xs text-ink-muted">{s.label}</div>
-            <div className="mt-1 text-3xl font-medium tabular text-ink">
-              {s.value.toLocaleString()}
-            </div>
+            <div className="mt-1 text-2xl font-medium tabular text-ink">{s.value}</div>
           </div>
         ))}
+      </div>
+
+      <h2 className="mt-8 text-lg font-medium text-ink">By school</h2>
+      <div className="mt-3 overflow-x-auto rounded-card border border-border bg-surface-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-ink-muted">
+              <th scope="col" className="px-4 py-3 font-medium">School</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Served</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Overrides</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Deposits</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Adjustments</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Low</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Negative</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dash.schools.map((s) => (
+              <tr key={s.schoolId} className="border-b border-border last:border-0">
+                <td className="px-4 py-3 text-ink">{s.schoolName}</td>
+                <td className="px-4 py-3 text-right tabular">{s.mealsServed}</td>
+                <td className="px-4 py-3 text-right tabular text-ink-muted">{s.mealOverrides}</td>
+                <td className="px-4 py-3 text-right"><MoneyDisplay amountCents={s.depositsCents} /></td>
+                <td className="px-4 py-3 text-right tabular">{s.adjustmentsCount}</td>
+                <td className="px-4 py-3 text-right tabular">{s.lowBalanceCount}</td>
+                <td className="px-4 py-3 text-right tabular">
+                  {s.negativeBalanceCount > 0 ? (
+                    <span className="text-danger">{s.negativeBalanceCount}</span>
+                  ) : (
+                    s.negativeBalanceCount
+                  )}
+                </td>
+              </tr>
+            ))}
+            {dash.schools.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">No schools in scope.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );
