@@ -79,6 +79,7 @@ export async function transferAction(
   }
   const fromStudentId = String(formData.get("fromStudentId") ?? "");
   const toStudentId = String(formData.get("toStudentId") ?? "");
+  const token = String(formData.get("token") ?? "");
   const cents = parseDollarsToCents(String(formData.get("amount") ?? ""));
   if (cents === null) return { error: "Enter a valid dollar amount." };
 
@@ -90,20 +91,26 @@ export async function transferAction(
   try {
     await requireGuardianOf(session, fromStudentId);
     await requireGuardianOf(session, toStudentId);
-    await recordTransfer({
+    const result = await recordTransfer({
       fromStudentId,
       toStudentId,
       amountCents: cents,
       actor: { actorType: "GUARDIAN", actorId: session.guardianId },
+      // Namespaced so a transfer key can never collide with a deposit key.
+      // A double-submitted form (same token) is an idempotent no-op.
+      idempotencyKey: token ? `xfr:${token}` : undefined,
     });
-    await writeAudit({
-      actorType: "GUARDIAN",
-      actorId: session.guardianId,
-      action: "TRANSFER",
-      subjectType: "student",
-      subjectId: fromStudentId,
-      after: { toStudentId, amountCents: cents },
-    });
+    // Only audit a real money movement, not an idempotent replay.
+    if (!result.replayed) {
+      await writeAudit({
+        actorType: "GUARDIAN",
+        actorId: session.guardianId,
+        action: "TRANSFER",
+        subjectType: "student",
+        subjectId: fromStudentId,
+        after: { toStudentId, amountCents: cents },
+      });
+    }
   } catch (err) {
     if (err instanceof LedgerError && err.code === "INSUFFICIENT_FUNDS") {
       return { error: "That's more than the source child's balance." };

@@ -4,7 +4,7 @@
 The financial core is provably correct. This phase is mostly `server/ledger/` logic + tests; UI is minimal.
 
 ## In scope
-- Entry types: DEPOSIT, ITEM_SALE, TRANSFER_OUT, TRANSFER_IN, ADJUSTMENT, REFUND — each with required metadata (reason for adjustments/refunds, transferRef for transfers, idempotencyKey for deposits/imports).
+- Entry types are the settled `LedgerEntryType` enum from phase 1 — DEPOSIT, MEAL_CHARGE, ALACARTE_CHARGE, TRANSFER_DEBIT, TRANSFER_CREDIT, ADJUSTMENT, REFUND, CORRECTION — each with required metadata (reason for adjustments/refunds, transferRef for transfers, idempotencyKey for deposits/imports/transfers). See `decisions.md` D-6.
 - Balance function: single source of truth `getBalanceCents(accountId)` derived from entries; optional cached balance column updated in the same transaction, with a reconciliation check.
 - Adjustment/refund API (admin-only): creates offsetting entries linked to the original entry id; mandatory reason; writes AuditLog.
 - Simulated payment-event endpoint: verifies a shared-secret signature on the fake event, enforces idempotency, creates exactly one credit.

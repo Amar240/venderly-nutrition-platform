@@ -18,6 +18,7 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
+import { withLedgerAdmin } from "../server/ledger/admin";
 
 const prisma = new PrismaClient();
 
@@ -74,7 +75,8 @@ async function reset() {
   await prisma.mealEvent.deleteMany();
   await prisma.paymentAllocation.deleteMany();
   await prisma.paymentIntent.deleteMany();
-  await prisma.ledgerEntry.deleteMany();
+  // LedgerEntry is append-only at the DB level; clear it via the admin escape.
+  await withLedgerAdmin(prisma, (tx) => tx.ledgerEntry.deleteMany());
   await prisma.account.deleteMany();
   await prisma.guardianStudent.deleteMany();
   await prisma.item.deleteMany();

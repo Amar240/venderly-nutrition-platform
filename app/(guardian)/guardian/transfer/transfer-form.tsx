@@ -20,7 +20,13 @@ const initialState: TransferState = { error: null };
 const selectClass =
   "min-h-touch w-full rounded-control border border-border bg-surface-card px-3 py-2 text-base text-ink";
 
-export function TransferForm({ children }: { children: ChildOption[] }) {
+export function TransferForm({
+  token,
+  children,
+}: {
+  token: string;
+  children: ChildOption[];
+}) {
   const [state, formAction] = useFormState(transferAction, initialState);
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
@@ -55,6 +61,7 @@ export function TransferForm({ children }: { children: ChildOption[] }) {
             <span>{state.error}</span>
           </div>
         )}
+        <input type="hidden" name="token" value={token} />
         <input type="hidden" name="fromStudentId" value={fromId} />
         <input type="hidden" name="toStudentId" value={toId} />
         <input type="hidden" name="amount" value={amount} />

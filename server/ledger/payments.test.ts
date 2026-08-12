@@ -13,6 +13,7 @@ import {
 import { paymentPort, PaymentError } from "@/server/ports/payment";
 import { signPaymentEvent } from "@/server/ports/paymentSignature";
 import { resetWebhookLimiter } from "@/server/ports/paymentRateLimit";
+import { withLedgerAdmin } from "@/server/ledger/admin";
 import { POST as webhookPOST } from "@/app/api/payments/webhook/route";
 import { getChildDetail } from "@/server/household/household";
 import type { AppSession } from "@/server/auth/types";
@@ -39,7 +40,9 @@ const createdGuardianIds: string[] = [];
 afterAll(async () => {
   for (const id of createdDistrictIds) {
     await prisma.paymentAllocation.deleteMany({ where: { student: { districtId: id } } });
-    await prisma.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } });
+    await withLedgerAdmin(prisma, (tx) =>
+      tx.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } }),
+    );
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.guardianStudent.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });

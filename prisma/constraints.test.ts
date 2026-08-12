@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { describe, it, expect, afterAll } from "vitest";
+import { withLedgerAdmin } from "@/server/ledger/admin";
 
 /**
  * Schema-guarantee tests for the structural rules that protect the money and
@@ -24,7 +25,9 @@ const createdDistrictIds: string[] = [];
 
 afterAll(async () => {
   for (const id of createdDistrictIds) {
-    await prisma.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } });
+    await withLedgerAdmin(prisma, (tx) =>
+      tx.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } }),
+    );
     await prisma.mealEvent.deleteMany({ where: { student: { districtId: id } } });
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
