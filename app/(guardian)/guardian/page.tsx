@@ -1,81 +1,67 @@
+import Link from "next/link";
 import { getAppSession } from "@/server/auth/session";
-import { prisma } from "@/server/db/client";
-import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
-import { classifyBalance, type BalanceStatus } from "@/server/household/balance";
+import { getHousehold } from "@/server/household/household";
 import { MoneyDisplay } from "@/components/ui/money";
-import { AlertTriangleIcon, AlertCircleIcon } from "@/components/icons";
+import { BalanceStatusPill } from "@/components/balance-status";
+import { LinkButton } from "@/components/ui/link-button";
 
 /**
- * Guardian household view. Students are reached ONLY through the verified
- * GuardianStudent link — never an open lookup (CLAUDE.md rule 7). Eligibility /
- * price tier is never queried or shown here. Balance status is computed on the
- * server (thresholds come from PricingConfig); the UI only renders it.
+ * Guardian household dashboard. Children are reached ONLY through the verified
+ * GuardianStudent link (getHousehold enforces it). Balances and status are
+ * computed server-side; the UI just renders them. No eligibility / price tier.
  */
 export default async function GuardianHomePage() {
   const session = await getAppSession();
-  if (!session || session.principalType !== "guardian") return null;
-
-  const links = await prisma.guardianStudent.findMany({
-    where: { guardianId: session.guardianId },
-    include: { student: { include: { account: true, school: true } } },
-    orderBy: { student: { lastName: "asc" } },
-  });
-
-  // Resolve the low-balance threshold per school (cached), then classify.
-  const thresholdCache = new Map<string, number>();
-  const rows = await Promise.all(
-    links.map(async ({ id, student }) => {
-      const balance = student.account?.balanceCents ?? 0;
-      let threshold = thresholdCache.get(student.schoolId);
-      if (threshold === undefined) {
-        threshold = await resolveLowBalanceThresholdCents(
-          student.districtId,
-          student.schoolId,
-        );
-        thresholdCache.set(student.schoolId, threshold);
-      }
-      return {
-        id,
-        student,
-        balance,
-        status: classifyBalance(balance, threshold),
-      };
-    }),
-  );
+  const household = await getHousehold(session);
+  const canTransfer = household.length >= 2;
 
   return (
     <section>
-      <h1 className="text-2xl font-medium text-ink">My household</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Balances and activity for your linked children.
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-medium text-ink">My household</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Balances and activity for your linked children.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {canTransfer && (
+            <LinkButton href="/guardian/transfer" variant="secondary">
+              Transfer
+            </LinkButton>
+          )}
+          <LinkButton href="/guardian/deposit">Add money</LinkButton>
+        </div>
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {rows.map(({ id, student, balance, status }) => (
-          <article
-            key={id}
-            className="rounded-card border border-border bg-surface-card p-6"
+        {household.map((child) => (
+          <Link
+            key={child.linkId}
+            href={`/guardian/child/${child.studentId}`}
+            className="block rounded-card border border-border bg-surface-card p-6 transition-[filter] hover:brightness-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-medium text-ink">
-                  {student.firstName} {student.lastName}
+                  {child.firstName} {child.lastName}
                 </h2>
                 <p className="text-sm text-ink-muted">
-                  Grade {student.grade} · {student.school.name}
+                  Grade {child.grade} · {child.schoolName}
                 </p>
               </div>
-              <BalanceStatusPill status={status} />
+              <BalanceStatusPill status={child.status} />
             </div>
             <div className="mt-4">
               <div className="text-xs text-ink-muted">Balance</div>
               <div className="text-2xl">
-                <MoneyDisplay amountCents={balance} />
+                <MoneyDisplay amountCents={child.balanceCents} />
               </div>
             </div>
-          </article>
+            <p className="mt-3 text-xs text-ink-muted">View activity →</p>
+          </Link>
         ))}
-        {rows.length === 0 && (
+        {household.length === 0 && (
           <p className="text-sm text-ink-muted">
             No linked children on this account yet.
           </p>
@@ -83,22 +69,4 @@ export default async function GuardianHomePage() {
       </div>
     </section>
   );
-}
-
-function BalanceStatusPill({ status }: { status: BalanceStatus }) {
-  if (status === "negative") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-danger-wash px-3 py-1 text-xs font-medium text-danger">
-        <AlertCircleIcon /> Negative
-      </span>
-    );
-  }
-  if (status === "low") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-warn-wash px-3 py-1 text-xs font-medium text-warn">
-        <AlertTriangleIcon /> Low balance
-      </span>
-    );
-  }
-  return null;
 }

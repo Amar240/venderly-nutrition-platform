@@ -72,6 +72,8 @@ async function reset() {
   // Delete in FK-safe order.
   await prisma.itemSale.deleteMany();
   await prisma.mealEvent.deleteMany();
+  await prisma.paymentAllocation.deleteMany();
+  await prisma.paymentIntent.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.account.deleteMany();
   await prisma.guardianStudent.deleteMany();

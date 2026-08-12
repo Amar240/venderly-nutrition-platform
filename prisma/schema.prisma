@@ -90,6 +90,12 @@ enum NotificationDeliveryStatus {
   FAILED
 }
 
+enum PaymentIntentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Directory: district / school / student
 // ---------------------------------------------------------------------------
@@ -142,13 +148,14 @@ model Student {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  district      District          @relation(fields: [districtId], references: [id])
-  school        School            @relation(fields: [schoolId], references: [id])
-  account       Account?
-  pricing       StudentPricing? // pricing INPUT only — not part of the rule-9 field list
-  guardianLinks GuardianStudent[]
-  mealEvents    MealEvent[]
-  itemSales     ItemSale[]
+  district           District            @relation(fields: [districtId], references: [id])
+  school             School              @relation(fields: [schoolId], references: [id])
+  account            Account?
+  pricing            StudentPricing? // pricing INPUT only — not part of the rule-9 field list
+  guardianLinks      GuardianStudent[]
+  mealEvents         MealEvent[]
+  itemSales          ItemSale[]
+  paymentAllocations PaymentAllocation[]
 
   @@unique([districtId, studentNumber])
   @@index([schoolId])
@@ -184,8 +191,9 @@ model Guardian {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  studentLinks  GuardianStudent[]
-  notifications Notification[]
+  studentLinks   GuardianStudent[]
+  notifications  Notification[]
+  paymentIntents PaymentIntent[]
 }
 
 model GuardianStudent {
@@ -241,29 +249,29 @@ model UserSchool {
 // ---------------------------------------------------------------------------
 
 model Account {
-  id          String   @id @default(cuid())
-  studentId   String   @unique
-  balanceCents Int     @default(0) // cached optimization; ledger is source of truth
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  studentId    String   @unique
+  balanceCents Int      @default(0) // cached optimization; ledger is source of truth
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   ledgerEntries LedgerEntry[]
 }
 
 // Append-only: NO updatedAt, never UPDATE/DELETE. Corrections are new rows.
 model LedgerEntry {
-  id             String          @id @default(cuid())
-  accountId      String
-  type           LedgerEntryType
-  amountCents    Int // signed: positive credit, negative debit
-  description    String
-  idempotencyKey String?         @unique
-  transferRef    String? // links a debit+credit transfer pair
+  id              String          @id @default(cuid())
+  accountId       String
+  type            LedgerEntryType
+  amountCents     Int // signed: positive credit, negative debit
+  description     String
+  idempotencyKey  String?         @unique
+  transferRef     String? // links a debit+credit transfer pair
   correctsEntryId String?
-  actorType      ActorType
-  actorId        String?
-  createdAt      DateTime        @default(now())
+  actorType       ActorType
+  actorId         String?
+  createdAt       DateTime        @default(now())
 
   account       Account       @relation(fields: [accountId], references: [id])
   correctsEntry LedgerEntry?  @relation("Corrections", fields: [correctsEntryId], references: [id])
@@ -280,14 +288,14 @@ model LedgerEntry {
 // ---------------------------------------------------------------------------
 
 model MealEvent {
-  id            String   @id @default(cuid())
-  studentId     String
-  serviceDate   DateTime @db.Date
-  mealType      MealType
-  priceCents    Int
-  ledgerEntryId String?  @unique
+  id             String   @id @default(cuid())
+  studentId      String
+  serviceDate    DateTime @db.Date
+  mealType       MealType
+  priceCents     Int
+  ledgerEntryId  String?  @unique
   overrideReason String?
-  createdAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   student     Student      @relation(fields: [studentId], references: [id])
   ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
@@ -306,8 +314,8 @@ model Item {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  district District @relation(fields: [districtId], references: [id])
-  school   School?  @relation(fields: [schoolId], references: [id])
+  district District   @relation(fields: [districtId], references: [id])
+  school   School?    @relation(fields: [schoolId], references: [id])
   sales    ItemSale[]
 }
 
@@ -351,19 +359,19 @@ model AuditLog {
 }
 
 model ImportRun {
-  id           String   @id @default(cuid())
-  districtId   String
-  source       String
-  operator     String
-  checksum     String?
-  status       String
-  createdCount Int      @default(0)
-  updatedCount Int      @default(0)
-  inactiveCount Int     @default(0)
-  skippedCount Int      @default(0)
-  failedCount  Int      @default(0)
-  errorsJson   Json?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  districtId    String
+  source        String
+  operator      String
+  checksum      String?
+  status        String
+  createdCount  Int      @default(0)
+  updatedCount  Int      @default(0)
+  inactiveCount Int      @default(0)
+  skippedCount  Int      @default(0)
+  failedCount   Int      @default(0)
+  errorsJson    Json?
+  createdAt     DateTime @default(now())
 
   district District @relation(fields: [districtId], references: [id])
 }
@@ -371,20 +379,20 @@ model ImportRun {
 // Three configurable pricing paths per meal (PRD business rules; phase 5 §17).
 // Free tier is a configurable field too (normally 0). CEP default = all 0.
 model PricingConfig {
-  id                      String   @id @default(cuid())
-  districtId              String
-  schoolId               String? // null = district-wide default
-  breakfastFreeCents      Int      @default(0)
-  breakfastReducedCents   Int      @default(0)
-  breakfastPaidCents      Int      @default(0)
-  lunchFreeCents          Int      @default(0)
-  lunchReducedCents       Int      @default(0)
-  lunchPaidCents          Int      @default(0)
-  lowBalanceThresholdCents Int     @default(1000)
-  cepEnabled              Boolean  @default(true) // Woodbridge demo default: CEP $0
-  effectiveFrom           DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  districtId               String
+  schoolId                 String? // null = district-wide default
+  breakfastFreeCents       Int      @default(0)
+  breakfastReducedCents    Int      @default(0)
+  breakfastPaidCents       Int      @default(0)
+  lunchFreeCents           Int      @default(0)
+  lunchReducedCents        Int      @default(0)
+  lunchPaidCents           Int      @default(0)
+  lowBalanceThresholdCents Int      @default(1000)
+  cepEnabled               Boolean  @default(true) // Woodbridge demo default: CEP $0
+  effectiveFrom            DateTime @default(now())
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   district District @relation(fields: [districtId], references: [id])
   school   School?  @relation(fields: [schoolId], references: [id])
@@ -429,4 +437,39 @@ model NotificationDelivery {
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@index([notificationId])
+}
+
+// ---------------------------------------------------------------------------
+// Payments (phase 2 — simulated hosted checkout)
+// PaymentIntent is the server-side source of truth for a deposit's amount. The
+// ledger credit is applied ONLY when the signed provider event settles the
+// intent (server/ports/payment.ts) — never from a client redirect. `eventId`
+// (the provider event id) is unique so a replayed event settles at most once.
+// ---------------------------------------------------------------------------
+
+model PaymentIntent {
+  id          String              @id @default(cuid()) // also the opaque checkoutId
+  guardianId  String
+  status      PaymentIntentStatus @default(PENDING)
+  totalCents  Int
+  eventId     String?             @unique // provider event id, set on settle
+  createdAt   DateTime            @default(now())
+  completedAt DateTime?
+
+  guardian    Guardian            @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  allocations PaymentAllocation[]
+
+  @@index([guardianId])
+}
+
+model PaymentAllocation {
+  id          String @id @default(cuid())
+  intentId    String
+  studentId   String
+  amountCents Int
+
+  intent  PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  student Student       @relation(fields: [studentId], references: [id])
+
+  @@index([intentId])
 }

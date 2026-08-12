@@ -13,3 +13,17 @@ export function formatCents(amountCents: number): string {
   const cents = (abs % 100).toString().padStart(2, "0");
   return `${negative ? "-" : ""}$${dollars.toLocaleString()}.${cents}`;
 }
+
+/**
+ * Parse a user-entered dollar string to integer cents WITHOUT floating point
+ * (CLAUDE.md rule 1). Accepts "25", "25.5", "25.50", "$1,234.00". Returns null
+ * for anything else (empty, negative, >2 decimals, non-numeric). Zod schemas
+ * layer the "must be positive" rule on top; this only does exact conversion.
+ */
+export function parseDollarsToCents(input: string): number | null {
+  const cleaned = input.trim().replace(/[$,]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const [whole, frac = ""] = cleaned.split(".");
+  const cents = Number(whole) * 100 + Number(frac.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}

@@ -4,7 +4,7 @@ import path from "node:path";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "prisma/**/*.test.ts"],
+    include: ["server/**/*.test.ts", "prisma/**/*.test.ts", "lib/**/*.test.ts"],
     globals: true,
   },
   resolve: {
