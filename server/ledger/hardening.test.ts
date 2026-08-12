@@ -11,6 +11,8 @@ import {
 } from "./ledger";
 import { lockAccountsForUpdate, assertCanDebit } from "./balanceGuard";
 import { withLedgerAdmin } from "./admin";
+import { AuthError } from "@/server/auth/errors";
+import type { AppSession } from "@/server/auth/types";
 
 /**
  * Phase 3 — ledger hardening. Concurrency, idempotency, balance truth,
@@ -82,6 +84,28 @@ async function freshAccounts(seed = { a: 5000, b: 2000 }): Promise<Accounts> {
 const admin = { actorType: "USER" as const, actorId: "admin-1" };
 const guardian = { actorType: "GUARDIAN" as const, actorId: "g-1" };
 
+// Discriminated admin actor for adjustments/refunds (self-guarding).
+const sysActor = { kind: "system" as const, reason: "test reconciliation" };
+const adminSession: AppSession = {
+  principalType: "staff",
+  userId: "u-admin",
+  role: "DISTRICT_ADMIN",
+  districtId: "d-1",
+  schoolIds: [],
+};
+const cashierSession: AppSession = {
+  principalType: "staff",
+  userId: "u-cashier",
+  role: "CASHIER",
+  districtId: "d-1",
+  schoolIds: [],
+};
+const guardianSession: AppSession = {
+  principalType: "guardian",
+  guardianId: "g-1",
+  role: "GUARDIAN",
+};
+
 describe.skipIf(!dbUp)("concurrency (the carried finding)", () => {
   it("two concurrent full-balance transfers → one success, one INSUFFICIENT_FUNDS, never negative", async () => {
     const acc = await freshAccounts({ a: 5000, b: 0 });
@@ -126,7 +150,7 @@ describe.skipIf(!dbUp)("balance = sum of entries", () => {
   it("getBalanceCents equals the ledger sum across a mixed history", async () => {
     const acc = await freshAccounts({ a: 3000, b: 0 });
     await recordDeposit({ studentId: acc.aStudentId, amountCents: 1500, idempotencyKey: `k-${crypto.randomUUID()}`, actor: admin });
-    await recordAdjustment({ accountId: acc.aAccountId, amountCents: -250, reason: "test", actor: admin });
+    await recordAdjustment({ accountId: acc.aAccountId, amountCents: -250, reason: "test", actor: sysActor });
     await recordTransfer({ fromStudentId: acc.aStudentId, toStudentId: acc.bStudentId, amountCents: 500, actor: guardian });
 
     const derived = await getBalanceCents(acc.aAccountId); // 3000 + 1500 - 250 - 500
@@ -167,7 +191,7 @@ describe.skipIf(!dbUp)("adjustments and refunds", () => {
     const original = await prisma.ledgerEntry.findFirstOrThrow({ where: { accountId: acc.aAccountId, type: "DEPOSIT" } });
     const before = original.amountCents;
 
-    const adj = await recordAdjustment({ originalEntryId: original.id, amountCents: -500, reason: "keying error", actor: admin });
+    const adj = await recordAdjustment({ originalEntryId: original.id, amountCents: -500, reason: "keying error", actor: sysActor });
     expect(adj.type).toBe("ADJUSTMENT");
     expect(adj.correctsEntryId).toBe(original.id);
 
@@ -179,7 +203,7 @@ describe.skipIf(!dbUp)("adjustments and refunds", () => {
   it("refund reverses the original amount, linked to it", async () => {
     const acc = await freshAccounts({ a: 0, b: 2000 });
     const dep = await prisma.ledgerEntry.findFirstOrThrow({ where: { accountId: acc.bAccountId, type: "DEPOSIT" } });
-    const refund = await recordRefund({ originalEntryId: dep.id, reason: "duplicate deposit", actor: admin });
+    const refund = await recordRefund({ originalEntryId: dep.id, reason: "duplicate deposit", actor: sysActor });
     expect(refund.type).toBe("REFUND");
     expect(refund.amountCents).toBe(-dep.amountCents);
     expect(refund.correctsEntryId).toBe(dep.id);
@@ -189,8 +213,28 @@ describe.skipIf(!dbUp)("adjustments and refunds", () => {
   it("requires a reason", async () => {
     const acc = await freshAccounts({ a: 1000, b: 0 });
     await expect(
-      recordAdjustment({ accountId: acc.aAccountId, amountCents: -100, reason: "  ", actor: admin }),
+      recordAdjustment({ accountId: acc.aAccountId, amountCents: -100, reason: "  ", actor: sysActor }),
     ).rejects.toBeInstanceOf(LedgerError);
+  });
+
+  it("self-guards: a non-admin staff/guardian session is refused before any write", async () => {
+    const acc = await freshAccounts({ a: 1000, b: 0 });
+    for (const session of [cashierSession, guardianSession]) {
+      await expect(
+        recordAdjustment({ accountId: acc.aAccountId, amountCents: -100, reason: "x", actor: { kind: "staff", session } }),
+      ).rejects.toBeInstanceOf(AuthError);
+    }
+    // Nothing was written by the rejected attempts.
+    expect(await getBalanceCents(acc.aAccountId)).toBe(1000);
+  });
+
+  it("allows an admin session and a system actor", async () => {
+    const acc = await freshAccounts({ a: 1000, b: 0 });
+    const adj = await recordAdjustment({ accountId: acc.aAccountId, amountCents: -100, reason: "admin fix", actor: { kind: "staff", session: adminSession } });
+    expect(adj.actorType).toBe("USER");
+    const sys = await recordAdjustment({ accountId: acc.aAccountId, amountCents: -50, reason: "auto", actor: sysActor });
+    expect(sys.actorType).toBe("SYSTEM");
+    expect(await getBalanceCents(acc.aAccountId)).toBe(850);
   });
 });
 

@@ -91,6 +91,8 @@ export async function setStudentTier(params: {
     },
   });
 
+  // D-1: the tier VALUE must never appear in an audit payload. Record that a
+  // change happened and its provenance (source), never the tier itself.
   await writeAudit({
     actorType: params.actorType,
     actorId: params.actorId ?? null,
@@ -98,7 +100,7 @@ export async function setStudentTier(params: {
     subjectType: "student",
     subjectId: params.studentId,
     districtId: params.districtId ?? null,
-    before: previous ? { tier: previous.tier, source: previous.source } : null,
-    after: { tier: params.tier, source: params.source },
+    before: previous ? { source: previous.source } : null,
+    after: { source: params.source },
   });
 }

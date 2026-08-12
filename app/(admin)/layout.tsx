@@ -2,7 +2,10 @@ import { requireSurface } from "@/server/auth/guardLayout";
 import { getSessionIdentity } from "@/server/auth/identity";
 import { SurfaceShell, type NavItem } from "@/components/surface-shell";
 
-const NAV: NavItem[] = [{ label: "Overview", href: "/admin" }];
+const NAV: NavItem[] = [
+  { label: "Overview", href: "/admin" },
+  { label: "Students", href: "/admin/students" },
+];
 
 export default async function AdminLayout({
   children,

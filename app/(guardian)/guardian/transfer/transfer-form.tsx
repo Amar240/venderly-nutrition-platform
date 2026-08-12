@@ -22,10 +22,10 @@ const selectClass =
 
 export function TransferForm({
   token,
-  children,
+  students,
 }: {
   token: string;
-  children: ChildOption[];
+  students: ChildOption[];
 }) {
   const [state, formAction] = useFormState(transferAction, initialState);
   const [fromId, setFromId] = useState("");
@@ -34,8 +34,8 @@ export function TransferForm({
   const [reviewing, setReviewing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const from = children.find((c) => c.studentId === fromId);
-  const to = children.find((c) => c.studentId === toId);
+  const from = students.find((c) => c.studentId === fromId);
+  const to = students.find((c) => c.studentId === toId);
   const cents = parseDollarsToCents(amount);
 
   function review() {
@@ -112,7 +112,7 @@ export function TransferForm({
           onChange={(e) => setFromId(e.target.value)}
         >
           <option value="">Choose a child…</option>
-          {children.map((c) => (
+          {students.map((c) => (
             <option key={c.studentId} value={c.studentId}>
               {c.name}
             </option>
@@ -134,7 +134,7 @@ export function TransferForm({
           onChange={(e) => setToId(e.target.value)}
         >
           <option value="">Choose a child…</option>
-          {children
+          {students
             .filter((c) => c.studentId !== fromId)
             .map((c) => (
               <option key={c.studentId} value={c.studentId}>

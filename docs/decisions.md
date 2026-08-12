@@ -52,6 +52,37 @@ This is a shared helper. Transfers use it; phase 4's a-la-carte insufficient-bal
 
 Separately, transfers carry an idempotency key (`xfr:<server-issued per-render token>`) stored on the debit row. The lock prevents concurrent overdraw; the key prevents a sequential double-submit moving money twice. They solve different failures and both are required.
 
+## D-8 · Ledger writers outside guardian flows self-guard
+**Decided:** phase 4 · **Status:** settled
+
+Any function that writes a `LedgerEntry` and is not part of a guardian's own household flow must take an explicit discriminated actor — `{ kind: "staff", session }` or `{ kind: "system", reason }` — and enforce the required role itself via `requireRole`. The call site guards as well; this is defence in depth, not a replacement.
+
+Applies to `recordAdjustment`, `recordRefund`, and every correction function added later. A money-moving function must refuse to run unguarded, and an unguarded system call must be a deliberate, greppable choice rather than an omission.
+
+Excluded: `recordDeposit` and `recordTransfer`, which already have their own boundary — `requireGuardianOf` at the action layer, and the webhook settling as a system actor with no session.
+
+## D-9 · The append-only trigger is a soft guarantee; privileges are the hard one
+**Decided:** phase 4 · **Status:** settled
+
+The Postgres trigger on `LedgerEntry` rejects UPDATE and DELETE unless a transaction-local flag is set. Any connection using the same database role can set that flag, so the trigger prevents accidental mutation and creates evidence of intent — it is not a hard barrier.
+
+Describe it accurately, including to the district: "the database rejects updates and deletes; bypassing it requires deliberately setting a flag." Do not claim mutation is impossible.
+
+The hard control belongs to production (phase 8): revoke UPDATE and DELETE on `LedgerEntry` from the application role entirely, and run migrations under a separate role. Then no application code can escape regardless of session settings.
+
+## D-10 · Duplicate-meal override creates a real second MealEvent
+**Decided:** phase 5a · **Status:** settled
+
+`MealEvent` gains `overrideSeq Int @default(0)`; the unique key becomes (studentId, serviceDate, mealType, overrideSeq).
+
+Why a real row rather than an audit-only note: a second meal was actually served, and the record should reflect what happened at the counter. On a paid tier the second serving creates a ledger charge, which would otherwise be an orphaned debit with no meal event explaining it.
+
+Binding constraints:
+- `overrideSeq = 0` is the normal POS path. The duplicate guard is unchanged.
+- Only an admin action creates `seq > 0`. The POS can never produce one — a cashier hitting a duplicate is told "duplicate" and nothing else.
+- `seq > 0` requires a non-empty `overrideReason` and writes an AuditLog entry with actor, student, service date, meal type, and reason.
+- **Meal count reports must never silently sum overrides.** Report `seq = 0` as the headline count and overrides as a separate line. A student normally gets one reimbursable meal per day; if a district ever authorizes these counts as an official source, a figure that quietly includes overrides would be a compliance problem. Test that the count query excludes `seq > 0`.
+
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 

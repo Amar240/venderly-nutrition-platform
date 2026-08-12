@@ -25,7 +25,7 @@ export default async function DepositPage() {
 
       <div className="mt-6">
         <DepositForm
-          children={household.map((c) => ({
+          students={household.map((c) => ({
             studentId: c.studentId,
             name: `${c.firstName} ${c.lastName}`,
             schoolName: c.schoolName,

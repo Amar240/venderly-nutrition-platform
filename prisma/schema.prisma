@@ -293,6 +293,10 @@ model MealEvent {
   serviceDate    DateTime @db.Date
   mealType       MealType
   priceCents     Int
+  // 0 = the normal POS serving (one per student/date/mealType — the duplicate
+  // guard). Only an admin duplicate-meal override creates seq > 0, and only with
+  // an overrideReason + AuditLog. The POS can NEVER produce seq > 0 (rule 6).
+  overrideSeq    Int      @default(0)
   ledgerEntryId  String?  @unique
   overrideReason String?
   createdAt      DateTime @default(now())
@@ -300,7 +304,7 @@ model MealEvent {
   student     Student      @relation(fields: [studentId], references: [id])
   ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
 
-  @@unique([studentId, serviceDate, mealType])
+  @@unique([studentId, serviceDate, mealType, overrideSeq])
   @@index([serviceDate])
 }
 

@@ -1,6 +1,9 @@
 import { prisma } from "@/server/db/client";
 import { Prisma, type ActorType, type LedgerEntry } from "@prisma/client";
 import { writeAudit } from "@/server/audit/log";
+import { requireRole } from "@/server/auth/rbac";
+import { AuthError } from "@/server/auth/errors";
+import type { AppSession } from "@/server/auth/types";
 import { lockAccountsForUpdate, assertCanDebit } from "./balanceGuard";
 
 /**
@@ -167,6 +170,8 @@ export interface RecordTransferInput {
    * success instead of moving money again — a double-submitted form is a no-op.
    */
   idempotencyKey?: string;
+  /** Override the debit/credit descriptions (e.g. an admin reallocation). */
+  descriptions?: { debit: string; credit: string };
 }
 
 export interface TransferResult {
@@ -225,7 +230,7 @@ export async function recordTransfer(
           accountId: source.id,
           type: "TRANSFER_DEBIT",
           amountCents: -input.amountCents,
-          description: "Transfer to sibling",
+          description: input.descriptions?.debit ?? "Transfer to sibling",
           transferRef,
           idempotencyKey: input.idempotencyKey ?? null, // key on the debit only
           actorType: input.actor.actorType,
@@ -237,7 +242,7 @@ export async function recordTransfer(
           accountId: dest.id,
           type: "TRANSFER_CREDIT",
           amountCents: input.amountCents,
-          description: "Transfer from sibling",
+          description: input.descriptions?.credit ?? "Transfer from sibling",
           transferRef,
           actorType: input.actor.actorType,
           actorId: input.actor.actorId ?? null,
@@ -266,27 +271,58 @@ export async function recordTransfer(
   }
 }
 
+/**
+ * Who is performing a money-moving correction. A discriminated actor so the
+ * function can GUARD ITSELF instead of trusting the call site:
+ *  - `staff`: carries the session; recordAdjustment/recordRefund call requireRole
+ *    (DISTRICT_ADMIN or SUPER_ADMIN) internally and refuse otherwise.
+ *  - `system`: an automated correction with a mandatory justification reason.
+ */
+export type LedgerAdminActor =
+  | { kind: "staff"; session: AppSession }
+  | { kind: "system"; reason: string };
+
+interface ResolvedAdminActor {
+  actorType: ActorType;
+  actorId: string | null;
+  districtId: string | null;
+  systemReason: string | null;
+}
+
+/** Enforce the role for a staff actor; resolve identity for the audit trail. */
+function resolveAdminActor(actor: LedgerAdminActor): ResolvedAdminActor {
+  if (actor.kind === "staff") {
+    requireRole(actor.session, "DISTRICT_ADMIN", "SUPER_ADMIN"); // throws AuthError otherwise
+    const s = actor.session;
+    if (s.principalType !== "staff") throw new AuthError("FORBIDDEN_ROLE");
+    return { actorType: "USER", actorId: s.userId, districtId: s.districtId, systemReason: null };
+  }
+  if (!actor.reason?.trim()) {
+    throw new AuthError("FORBIDDEN_ROLE", "A system correction requires a reason");
+  }
+  return { actorType: "SYSTEM", actorId: null, districtId: null, systemReason: actor.reason };
+}
+
 export interface RecordAdjustmentInput {
   /** Target account, or omit and pass originalEntryId to derive it. */
   accountId?: string;
   /** The entry being corrected — links the new row via correctsEntryId. */
   originalEntryId?: string;
   amountCents: number; // signed
-  reason: string;
-  actor: LedgerActor; // admin (USER); RBAC is enforced by the caller (phase 5)
-  districtId?: string | null;
+  reason: string; // the correction reason (mandatory)
+  actor: LedgerAdminActor; // role enforced INSIDE this function
 }
 
 /**
  * Admin adjustment — a NEW signed entry that offsets/corrects, linked to the
  * original entry id, with a mandatory reason. Never mutates the original
- * (append-only). Writes an AuditLog. RBAC (district admin+) is enforced at the
- * call site, not here.
+ * (append-only). Self-guards on the actor's role and writes an AuditLog.
  */
 export async function recordAdjustment(
   input: RecordAdjustmentInput,
   db: typeof prisma = prisma,
 ): Promise<LedgerEntry> {
+  const who = resolveAdminActor(input.actor); // throws before any write if unguarded
   if (!input.reason?.trim()) {
     throw new LedgerError("REASON_REQUIRED", "An adjustment requires a reason");
   }
@@ -311,8 +347,8 @@ export async function recordAdjustment(
         amountCents: input.amountCents,
         description: `Adjustment: ${input.reason}`,
         correctsEntryId,
-        actorType: input.actor.actorType,
-        actorId: input.actor.actorId ?? null,
+        actorType: who.actorType,
+        actorId: who.actorId,
       },
     });
     await syncCachedBalance(accountId, tx);
@@ -320,14 +356,19 @@ export async function recordAdjustment(
   });
 
   await writeAudit({
-    actorType: input.actor.actorType,
-    actorId: input.actor.actorId ?? null,
+    actorType: who.actorType,
+    actorId: who.actorId,
     action: "LEDGER_ADJUSTMENT",
     subjectType: "account",
     subjectId: accountId,
-    districtId: input.districtId ?? null,
+    districtId: who.districtId,
     reason: input.reason,
-    after: { entryId: entry.id, amountCents: input.amountCents, correctsEntryId: entry.correctsEntryId },
+    after: {
+      entryId: entry.id,
+      amountCents: input.amountCents,
+      correctsEntryId: entry.correctsEntryId,
+      systemReason: who.systemReason,
+    },
   });
   return entry;
 }
@@ -335,18 +376,19 @@ export async function recordAdjustment(
 export interface RecordRefundInput {
   originalEntryId: string;
   reason: string;
-  actor: LedgerActor;
-  districtId?: string | null;
+  actor: LedgerAdminActor; // role enforced INSIDE this function
 }
 
 /**
  * Admin refund — a NEW entry reversing the original (negated amount), linked via
- * correctsEntryId, with a mandatory reason. Never mutates the original. Audited.
+ * correctsEntryId, with a mandatory reason. Never mutates the original.
+ * Self-guards on the actor's role. Audited.
  */
 export async function recordRefund(
   input: RecordRefundInput,
   db: typeof prisma = prisma,
 ): Promise<LedgerEntry> {
+  const who = resolveAdminActor(input.actor); // throws before any write if unguarded
   if (!input.reason?.trim()) {
     throw new LedgerError("REASON_REQUIRED", "A refund requires a reason");
   }
@@ -360,8 +402,8 @@ export async function recordRefund(
         amountCents: -original.amountCents,
         description: `Refund: ${input.reason}`,
         correctsEntryId: original.id,
-        actorType: input.actor.actorType,
-        actorId: input.actor.actorId ?? null,
+        actorType: who.actorType,
+        actorId: who.actorId,
       },
     });
     await syncCachedBalance(original.accountId, tx);
@@ -369,16 +411,73 @@ export async function recordRefund(
   });
 
   await writeAudit({
-    actorType: input.actor.actorType,
-    actorId: input.actor.actorId ?? null,
+    actorType: who.actorType,
+    actorId: who.actorId,
     action: "LEDGER_REFUND",
     subjectType: "account",
     subjectId: accountId,
-    districtId: input.districtId ?? null,
+    districtId: who.districtId,
     reason: input.reason,
-    after: { entryId: entry.id, refundsEntryId: input.originalEntryId, amountCents: entry.amountCents },
+    after: {
+      entryId: entry.id,
+      refundsEntryId: input.originalEntryId,
+      amountCents: entry.amountCents,
+      systemReason: who.systemReason,
+    },
   });
   return entry;
+}
+
+export interface RecordReallocationInput {
+  fromStudentId: string;
+  toStudentId: string;
+  amountCents: number;
+  reason: string;
+  actor: LedgerAdminActor; // role enforced INSIDE this function (D-8)
+}
+
+/**
+ * Admin reallocation — move money between two accounts to fix a mistake (e.g. a
+ * deposit made to the wrong child). Self-guards on the actor's role, then reuses
+ * recordTransfer (D-7 lock + linked debit/credit + transferRef). Mandatory
+ * reason; audited. School-scope (which schools the admin may touch) is enforced
+ * by the calling action, since roles alone don't encode scope.
+ */
+export async function recordReallocation(
+  input: RecordReallocationInput,
+  db: typeof prisma = prisma,
+): Promise<TransferResult> {
+  const who = resolveAdminActor(input.actor); // throws AuthError if unguarded
+  if (!input.reason?.trim()) {
+    throw new LedgerError("REASON_REQUIRED", "A reallocation requires a reason");
+  }
+  const result = await recordTransfer(
+    {
+      fromStudentId: input.fromStudentId,
+      toStudentId: input.toStudentId,
+      amountCents: input.amountCents,
+      actor: { actorType: who.actorType, actorId: who.actorId },
+      descriptions: { debit: "Reallocation (out)", credit: "Reallocation (in)" },
+    },
+    db,
+  );
+
+  await writeAudit({
+    actorType: who.actorType,
+    actorId: who.actorId,
+    action: "LEDGER_REALLOCATION",
+    subjectType: "student",
+    subjectId: input.fromStudentId,
+    districtId: who.districtId,
+    reason: input.reason,
+    after: {
+      toStudentId: input.toStudentId,
+      amountCents: input.amountCents,
+      transferRef: result.transferRef,
+      systemReason: who.systemReason,
+    },
+  });
+  return result;
 }
 
 /** Chronological ledger history for a child's account. */

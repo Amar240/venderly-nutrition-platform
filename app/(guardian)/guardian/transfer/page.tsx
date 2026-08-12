@@ -30,7 +30,7 @@ export default async function TransferPage() {
         ) : (
           <TransferForm
             token={crypto.randomUUID()}
-            children={household.map((c) => ({
+            students={household.map((c) => ({
               studentId: c.studentId,
               name: `${c.firstName} ${c.lastName}`,
               balanceCents: c.balanceCents,

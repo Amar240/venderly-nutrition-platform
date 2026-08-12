@@ -15,7 +15,7 @@ interface ChildOption {
 
 const initialState: DepositState = { error: null };
 
-export function DepositForm({ children }: { children: ChildOption[] }) {
+export function DepositForm({ students }: { students: ChildOption[] }) {
   const [state, formAction] = useFormState(startDepositAction, initialState);
 
   return (
@@ -31,7 +31,7 @@ export function DepositForm({ children }: { children: ChildOption[] }) {
       )}
 
       <ul className="space-y-4">
-        {children.map((child) => {
+        {students.map((child) => {
           const fieldId = `amount_${child.studentId}`;
           const fieldError = state.fieldErrors?.[child.studentId];
           return (

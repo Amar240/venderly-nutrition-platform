@@ -20,6 +20,7 @@ Do this only after phase 7 passes locally. Deploying an unfinished app wastes ti
 Multi-account separation, Multi-AZ, Transfer Family SFTP, CloudTrail-to-audit-account, GuardDuty. Those belong to production, after the district's security review. Do not build them for a synthetic-data demo.
 
 ## Rules
+- **Database privileges enforce append-only.** Revoke UPDATE and DELETE on `LedgerEntry` from the application role; run migrations under a separate role. The phase-3 trigger is a soft guarantee that any connection can bypass by setting a flag — privileges are the hard one. See `decisions.md` D-9.
 - Synthetic data only. The prototype banner stays on. No real roster ever touches this environment.
 - Infrastructure defined as code (CDK or Terraform), committed to the repo — clicking through the console leaves no record and cannot be rebuilt.
 - No long-lived AWS access keys in the app; use task roles.
