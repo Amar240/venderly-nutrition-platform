@@ -84,6 +84,17 @@ async function authenticateStaff(
   creds: Credentials,
   ip: string,
 ): Promise<AuthResult> {
+  if (user.disabledAt) {
+    // Deactivated staff cannot sign in. Generic "invalid" — don't reveal state.
+    await writeAudit({
+      actorType: "USER",
+      actorId: user.id,
+      action: "LOGIN_DISABLED",
+      districtId: user.districtId,
+      ip,
+    });
+    return { ok: false, reason: "invalid" };
+  }
   if (isLocked(user.lockedUntil)) {
     await writeAudit({
       actorType: "USER",

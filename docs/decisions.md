@@ -87,3 +87,12 @@ Binding constraints:
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 
 `Notification` plus `NotificationDelivery` exist from phase 1. Generation logic and `NotificationPort` are phase 5. Nothing is emailed or texted in the pilot; production swaps GoHighLevel in behind the port.
+
+## D-11 · Pilot staff provisioning is a deliberate demo shortcut
+**Decided:** phase 5c · **Status:** settled
+
+Super-admin "create staff user" sets the shared demo password (hashed) and generates a TOTP secret shown exactly once at creation — there is no "view secret" screen anywhere. `districtId` always comes from the session, never the form. Staff are DEACTIVATED (`User.disabledAt`), never deleted, because `AuditLog.actorId` references them; deactivation is audited, reversible, and makes authentication fail. Creating or changing a `SUPER_ADMIN` is audited with before/after like any other config change — no special-casing.
+
+This is a demo shortcut, not a production pattern. Production needs an email invite with a set-password link and self-enrolled TOTP — not a shared password and not an admin-visible secret. Phase 8 replaces this flow.
+
+Notification bodies carry money amounts and student names only — never a pricing tier or eligibility category (D-1). Generation goes through `NotificationPort` (in-app pilot; GoHighLevel in phase 8).

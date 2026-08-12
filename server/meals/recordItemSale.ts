@@ -3,6 +3,7 @@ import { requireStaff, canAccessSchool } from "@/server/auth/rbac";
 import type { AppSession } from "@/server/auth/types";
 import { deriveBalanceCents, LedgerError } from "@/server/ledger/ledger";
 import { lockAccountsForUpdate, assertCanDebit } from "@/server/ledger/balanceGuard";
+import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
 
 /**
  * A-la-carte sale. Unlike a meal, this CAN be denied when the balance is short.
@@ -96,6 +97,9 @@ export async function recordItemSale(input: {
     }
     throw err;
   }
+
+  // Notify the guardian(s) if this charge just crossed the low-balance line.
+  await notifyIfLowBalanceCrossed(student.id, price);
 
   return { status: "recorded", studentName: `${student.firstName} ${student.lastName}` };
 }

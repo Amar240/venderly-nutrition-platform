@@ -7,6 +7,7 @@ import { lockAccountsForUpdate } from "@/server/ledger/balanceGuard";
 import { getStudentTier } from "./pricing";
 import { computeMealPriceCents } from "./pricing";
 import { getResolvedPricingConfig } from "@/server/pricing/config";
+import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
 
 /**
  * Meal recording — the POS entry point for breakfast/lunch.
@@ -94,6 +95,11 @@ export async function recordMeal(input: {
       return { status: "duplicate" }; // same student + date + meal type
     }
     throw err;
+  }
+
+  // A priced meal (non-CEP) can cross the low-balance line; $0 CEP meals can't.
+  if (priceCents > 0) {
+    await notifyIfLowBalanceCrossed(student.id, priceCents);
   }
 
   return {

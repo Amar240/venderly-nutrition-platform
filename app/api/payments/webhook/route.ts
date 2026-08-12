@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyPaymentSignature, type PaymentEvent } from "@/server/ports/paymentSignature";
 import { paymentPort, PaymentError } from "@/server/ports/payment";
 import { webhookRateLimited } from "@/server/ports/paymentRateLimit";
+import { notifyDepositCompleted } from "@/server/notifications/service";
 
 /**
  * Simulated payment provider webhook. This is the ONLY path that credits a
@@ -36,6 +37,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await paymentPort.settle({ intentId: event.intentId, eventId: event.id });
+    // Notify the guardian only on the first (non-replay) settlement.
+    if (!result.alreadySettled) {
+      await notifyDepositCompleted({ guardianId: result.guardianId, allocations: result.allocations });
+    }
     return NextResponse.json({ ok: true, alreadySettled: result.alreadySettled });
   } catch (err) {
     if (err instanceof PaymentError && err.code === "INTENT_NOT_FOUND") {

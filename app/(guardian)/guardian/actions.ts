@@ -11,6 +11,7 @@ import { recordTransfer, LedgerError } from "@/server/ledger/ledger";
 import { requireGuardianOf } from "@/server/auth/rbac";
 import { writeAudit } from "@/server/audit/log";
 import { AuthError } from "@/server/auth/errors";
+import { notifyTransferCompleted, notifyIfLowBalanceCrossed } from "@/server/notifications/service";
 
 export interface DepositState {
   error: string | null;
@@ -100,7 +101,7 @@ export async function transferAction(
       // A double-submitted form (same token) is an idempotent no-op.
       idempotencyKey: token ? `xfr:${token}` : undefined,
     });
-    // Only audit a real money movement, not an idempotent replay.
+    // Only audit + notify a real money movement, not an idempotent replay.
     if (!result.replayed) {
       await writeAudit({
         actorType: "GUARDIAN",
@@ -110,6 +111,8 @@ export async function transferAction(
         subjectId: fromStudentId,
         after: { toStudentId, amountCents: cents },
       });
+      await notifyTransferCompleted({ guardianId: session.guardianId, fromStudentId, toStudentId, amountCents: cents });
+      await notifyIfLowBalanceCrossed(fromStudentId, cents);
     }
   } catch (err) {
     if (err instanceof LedgerError && err.code === "INSUFFICIENT_FUNDS") {

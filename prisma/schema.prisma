@@ -226,6 +226,7 @@ model User {
   totpEnrolledAt   DateTime?
   failedLoginCount Int       @default(0)
   lockedUntil      DateTime?
+  disabledAt       DateTime? // staff are deactivated, never deleted (audit refs actorId)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

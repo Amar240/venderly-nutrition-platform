@@ -39,6 +39,9 @@ const createdGuardianIds: string[] = [];
 
 afterAll(async () => {
   for (const id of createdDistrictIds) {
+    // Deposits now generate guardian notifications; clear them before the district.
+    await prisma.notificationDelivery.deleteMany({ where: { notification: { districtId: id } } });
+    await prisma.notification.deleteMany({ where: { districtId: id } });
     await prisma.paymentAllocation.deleteMany({ where: { student: { districtId: id } } });
     await withLedgerAdmin(prisma, (tx) =>
       tx.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } }),
