@@ -1,0 +1,42 @@
+# Full local stack for the Woodbridge Nutrition pilot.
+#   docker compose up --build     → Postgres + the app, migrated + seeded, on :3001
+#   docker compose down           → stop (data kept in the named volume)
+#   docker compose down -v        → stop AND wipe the database volume
+#
+# Secrets here are DEMO values for local testing only — not production secrets.
+# Override any of them by exporting the variable before `docker compose up`.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-woodbridge-dev}
+      POSTGRES_DB: woodbridge
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume → data survives container recreation (fixes the earlier
+      # data-loss issue from a volumeless ad-hoc container).
+      - woodbridge-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d woodbridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-woodbridge-dev}@db:5432/woodbridge
+      AUTH_SECRET: ${AUTH_SECRET:-docker-demo-auth-secret-change-me}
+      PAYMENT_SIM_SECRET: ${PAYMENT_SIM_SECRET:-docker-demo-payment-sim-secret}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-Woodbridge!Demo1}
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+
+volumes:
+  woodbridge-pgdata:
