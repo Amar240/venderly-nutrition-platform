@@ -22,11 +22,12 @@ Implement as a `data-density` attribute on the route group layout driving a CSS 
 --surface:      #FAF8F4;  /* app background */
 --surface-card: #FFFFFF;
 --border:       #E3DFD7;
---success:      #2E7D4F;  /* meal recorded, deposit complete */
---warn:         #B5730B;  /* low balance */
+--control-border:#918D85; /* input/button boundary, 3.31:1 on white */
+--success:      #25663F;  /* meal recorded, deposit complete; 5.94:1 on success wash */
+--warn:         #855300;  /* low balance; 5.55:1 on warn wash */
 --danger:       #B3261E;  /* denied, insufficient balance */
 ```
-White on `--brand` and on `--ink` both pass WCAG AA. Never place `--warn` or `--danger` text on a coloured fill — use the wash pattern (light tint background, dark same-family text).
+White on `--brand` and on `--ink` both pass WCAG AA. `--border` remains a quiet divider; use `--control-border` for input and button boundaries that need 3:1 non-text contrast. Never place `--warn` or `--danger` text on a coloured fill — use the wash pattern (light tint background, dark same-family text).
 
 Rule: every state carries an icon and a word, never colour alone.
 

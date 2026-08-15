@@ -19,6 +19,10 @@ Binding constraints:
 
 A price tier is a pricing input, not an eligibility record. See `open-decisions.md` item 2.
 
+**Amendment (design phase):** the guardian household view is a **second authorised reader**, scoped through the verified guardian-student relationship. A parent must be able to see what their own child's meal costs — a reduced-price family needs to know lunch is $0.40 in order to fund the account. Confidentiality was always about the cashier, other families, and general reports; never about the child's own parent.
+
+Unchanged: no tier in any POS payload, page source, client state, log line, export, or report. The reader list is exactly two — `server/meals` pricing logic, and the guardian's own household query.
+
 ## D-2 · PricingConfig uses explicit tier names
 **Decided:** phase 1 · **Status:** settled
 
