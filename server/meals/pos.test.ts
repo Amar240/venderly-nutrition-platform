@@ -176,6 +176,14 @@ describe.skipIf(!dbUp)("recordMeal", () => {
     const r = await recordMeal({ studentNumber: "does-not-exist", mealType: "LUNCH", session: f.session });
     expect(r.status).toBe("not_active_at_school");
   });
+
+  it("records reimbursable meals at zero snack money and lets the meal account go below zero", async () => {
+    const f = await freshPos({ cep: false, tier: "PAID", balance: 0 });
+    const r = await recordMeal({ studentNumber: f.studentNumber, mealType: "LUNCH", session: f.session });
+    expect(r.status).toBe("recorded");
+    expect(await getBalanceCents(f.accountId)).toBe(-325);
+    expect(await prisma.mealEvent.count({ where: { studentId: f.studentId, mealType: "LUNCH" } })).toBe(1);
+  });
 });
 
 describe.skipIf(!dbUp)("eligibility confidentiality (the rule that matters most)", () => {
@@ -362,6 +370,15 @@ describe.skipIf(!dbUp)("recordItemSale (a-la-carte, reuses the D-7 guard)", () =
     expect(sales).toBe(0);
     const account = await prisma.account.findFirstOrThrow({ where: { student: { districtId: f.districtId } } });
     expect(account.balanceCents).toBe(100); // untouched
+  });
+
+  it("denies a purchase at zero snack money, writing nothing", async () => {
+    const f = await freshPos({ balance: 0 });
+    const r = await recordItemSale({ studentNumber: f.studentNumber, itemId: f.itemId, session: f.session });
+    expect(r.status).toBe("insufficient_balance");
+    expect(await prisma.itemSale.count({ where: { student: { districtId: f.districtId } } })).toBe(0);
+    expect(await prisma.ledgerEntry.count({ where: { accountId: f.accountId, type: "ALACARTE_CHARGE" } })).toBe(0);
+    expect(await getBalanceCents(f.accountId)).toBe(0);
   });
 
   it("two concurrent purchases that together exceed balance → one recorded, one denied, never negative", async () => {

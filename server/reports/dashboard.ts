@@ -4,6 +4,7 @@ import { SERVED_ONLY, OVERRIDES_ONLY } from "@/server/meals/mealCounts";
 import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
 import { monthRange } from "./deposits";
 import { editCheckReport, type EditCheckRow } from "./editCheck";
+import { arrearsReport } from "./arrears";
 import { districtToday } from "@/server/time/district";
 import type { AppSession } from "@/server/auth/types";
 
@@ -41,7 +42,14 @@ export async function districtDashboard(
   const scope = await reportScope(session);
   const { from, to } = monthRange(now.getUTCFullYear(), now.getUTCMonth() + 1);
   const today = await districtToday(scope.districtId, now);
-  const editCheck = await editCheckReport(session, { from: today, to: today });
+  const [editCheck, arrears] = await Promise.all([
+    editCheckReport(session, { from: today, to: today }),
+    arrearsReport(session, { now }),
+  ]);
+  const arrearsBySchool = new Map<string, number>();
+  for (const row of arrears.rows) {
+    arrearsBySchool.set(row.schoolId, (arrearsBySchool.get(row.schoolId) ?? 0) + 1);
+  }
 
   // Derived balances for every in-scope account, in two queries.
   const accounts = await prisma.account.findMany({
@@ -74,12 +82,10 @@ export async function districtDashboard(
     const adjustments = ledgerByType.find((g) => g.type === "ADJUSTMENT");
 
     let lowBalanceCount = 0;
-    let negativeBalanceCount = 0;
     for (const a of accounts) {
       if (a.student.schoolId !== school.id) continue;
       const bal = balByAccount.get(a.id) ?? 0;
-      if (bal < 0) negativeBalanceCount++;
-      else if (bal < threshold) lowBalanceCount++;
+      if (bal >= 0 && bal < threshold) lowBalanceCount++;
     }
 
     rows.push({
@@ -91,7 +97,7 @@ export async function districtDashboard(
       adjustmentsCount: adjustments?._count._all ?? 0,
       adjustmentsNetCents: adjustments?._sum.amountCents ?? 0,
       lowBalanceCount,
-      negativeBalanceCount,
+      negativeBalanceCount: arrearsBySchool.get(school.id) ?? 0,
     });
   }
 

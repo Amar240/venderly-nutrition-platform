@@ -198,6 +198,7 @@ export function auditActionLabel(action: string): string {
     IMPORT_COMMITTED: "Uploaded student list",
     IMPORT_CONFIRMED_DEACTIVATION: "Marked many students as left",
     CONFIG_PRICING_UPDATE: "Changed meal prices",
+    CONFIG_CHARGE_POLICY_UPDATE: "Changed charge policy",
     CONFIG_SCHOOL_CREATE: "Added a school",
     CONFIG_SCHOOL_UPDATE: "Changed a school",
     CONFIG_ITEM_CREATE: "Added a snack",

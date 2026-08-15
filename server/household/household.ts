@@ -73,11 +73,16 @@ function pluralLunches(count: number) {
 
 function coverageText(balanceCents: number, lunchPriceCents: number, mealsRemaining: number | null) {
   if (lunchPriceCents === 0) return "Breakfast and lunch are free";
-  if (balanceCents < 0) return "No paid lunches covered right now";
+  if (balanceCents < 0) return "Lunch is still served, even while money is owed.";
   return `About ${mealsRemaining ?? 0} more ${pluralLunches(mealsRemaining ?? 0)}`;
 }
 
 function moneyText(balanceCents: number, lunchPriceCents: number) {
+  if (balanceCents < 0) {
+    const owed = formatCents(Math.abs(balanceCents));
+    if (lunchPriceCents === 0) return `${owed} owed for snacks and extras`;
+    return `${owed} owed · lunch costs ${formatCents(lunchPriceCents)}`;
+  }
   if (lunchPriceCents === 0) return `${formatCents(balanceCents)} for snacks and extras`;
   return `${formatCents(balanceCents)} · lunch costs ${formatCents(lunchPriceCents)}`;
 }
@@ -146,7 +151,7 @@ async function buildHouseholdChild(input: {
 
   const warnings: string[] = [];
   const reassurance = `${student.firstName} will still be served if it runs out.`;
-  if (status === "negative") warnings.push(`${student.firstName}'s balance is below zero.`);
+  if (status === "negative") warnings.push(`${student.firstName} has ${formatCents(Math.abs(balanceCents))} owed.`);
   if (status === "low") warnings.push(`${student.firstName}'s balance is low.`);
   if (status === "negative" || status === "low") {
     warnings.push(reassurance);

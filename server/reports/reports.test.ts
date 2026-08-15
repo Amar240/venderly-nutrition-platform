@@ -4,6 +4,7 @@ import { dailyMealCounts } from "./mealCounts";
 import { monthlyDeposits } from "./deposits";
 import { districtDashboard } from "./dashboard";
 import { editCheckCeiling, editCheckReport } from "./editCheck";
+import { arrearsReport, currentNegativeStreak } from "./arrears";
 import { listTransactions, transactionsToCsv } from "./transactions";
 import { getMoneyHistoryForAccount } from "@/server/ledger/moneyHistory";
 import { searchAuditLog } from "@/server/audit/query";
@@ -62,6 +63,8 @@ interface Fixture {
   schoolAStudentIds: string[];
   superAdmin: AppSession;
   adminA: AppSession;
+  schoolStaffA: AppSession;
+  cashier: AppSession;
   guardian: AppSession;
 }
 
@@ -120,7 +123,7 @@ async function fresh(): Promise<Fixture> {
     },
   });
 
-  const staff = (role: "SUPER_ADMIN" | "DISTRICT_ADMIN", schoolIds: string[]): AppSession =>
+  const staff = (role: "SUPER_ADMIN" | "DISTRICT_ADMIN" | "SCHOOL_STAFF" | "CASHIER", schoolIds: string[]): AppSession =>
     ({ principalType: "staff", userId: `u-${role}-${crypto.randomUUID()}`, role, districtId: district.id, schoolIds });
 
   return {
@@ -130,9 +133,32 @@ async function fresh(): Promise<Fixture> {
     schoolAStudentIds: [a1.id, a2.id, a3.id],
     superAdmin: staff("SUPER_ADMIN", []),
     adminA: staff("DISTRICT_ADMIN", [schoolA.id]),
+    schoolStaffA: staff("SCHOOL_STAFF", [schoolA.id]),
+    cashier: staff("CASHIER", [schoolA.id]),
     guardian: { principalType: "guardian", guardianId: `g-${crypto.randomUUID()}`, role: "GUARDIAN" },
   };
 }
+
+describe("arrears streak calculator", () => {
+  it("starts when the account drops below zero and resets after recovery", () => {
+    const d = (day: number) => new Date(`2026-08-${String(day).padStart(2, "0")}T12:00:00.000Z`);
+    expect(currentNegativeStreak([
+      { amountCents: 500, createdAt: d(1) },
+      { amountCents: -700, createdAt: d(2) },
+      { amountCents: 100, createdAt: d(3) },
+    ])).toMatchObject({ balanceCents: -100, streakStartedAt: d(2) });
+    expect(currentNegativeStreak([
+      { amountCents: 500, createdAt: d(1) },
+      { amountCents: -700, createdAt: d(2) },
+      { amountCents: 300, createdAt: d(3) },
+      { amountCents: -150, createdAt: d(4) },
+    ])).toMatchObject({ balanceCents: -50, streakStartedAt: d(4) });
+    expect(currentNegativeStreak([
+      { amountCents: 500, createdAt: d(1) },
+      { amountCents: -500, createdAt: d(2) },
+    ])).toEqual({ balanceCents: 0, streakStartedAt: null });
+  });
+});
 
 describe("edit-check ceiling", () => {
   it("uses integer basis points and rounds down", () => {
@@ -327,6 +353,48 @@ describe.skipIf(!dbUp)("district dashboard", () => {
       needsAttention: true,
     });
     expect(dash.editCheckExceptions[0]!.serviceDate).toEqual(currentDate);
+  });
+});
+
+describe.skipIf(!dbUp)("arrears report", () => {
+  it("lists derived negative accounts with positive owed amounts and matches dashboard counts", async () => {
+    const f = await fresh();
+    const rows = await arrearsReport(f.superAdmin, { now: new Date("2026-08-15T16:00:00.000Z") });
+    const alphaRows = rows.rows.filter((row) => row.schoolId === f.schoolAId);
+    expect(alphaRows).toHaveLength(1);
+    expect(alphaRows[0]).toMatchObject({
+      schoolName: "Alpha",
+      amountOwedCents: 200,
+      durationLabel: "Today",
+    });
+    expect(alphaRows[0]!.studentName).toContain("Kid");
+    const dash = await districtDashboard(f.superAdmin, new Date("2026-08-15T16:00:00.000Z"));
+    expect(dash.totals.negativeBalanceCount).toBe(rows.rows.length);
+    expect(dash.schools.find((school) => school.schoolId === f.schoolAId)?.negativeBalanceCount).toBe(alphaRows.length);
+  });
+
+  it("uses district-local dates and includes inactive students", async () => {
+    const f = await fresh();
+    const negativeStudent = await prisma.student.findFirstOrThrow({
+      where: { districtId: f.districtId, studentNumber: { startsWith: "A3-" } },
+      include: { account: true },
+    });
+    await prisma.student.update({ where: { id: negativeStudent.id }, data: { enrollmentStatus: "INACTIVE" } });
+    const report = await arrearsReport(f.superAdmin, { now: new Date("2026-08-16T03:30:00.000Z") });
+    const row = report.rows.find((candidate) => candidate.studentId === negativeStudent.id)!;
+    expect(row.enrollmentStatus).toBe("INACTIVE");
+    expect(row.durationLabel).toBe("Today"); // Still Aug. 15 in America/New_York.
+  });
+
+  it("is school-scoped and denies cashiers and guardians", async () => {
+    const f = await fresh();
+    const scoped = await arrearsReport(f.schoolStaffA);
+    expect(scoped.rows.every((row) => row.schoolId === f.schoolAId)).toBe(true);
+    await expect(arrearsReport(f.schoolStaffA, { schoolId: f.schoolBId })).rejects.toBeInstanceOf(AuthError);
+    await expect(arrearsReport(f.cashier)).rejects.toBeInstanceOf(AuthError);
+    await expect(arrearsReport(f.guardian)).rejects.toBeInstanceOf(AuthError);
+    expect(JSON.stringify(scoped).toLowerCase()).not.toContain("tier");
+    expect(JSON.stringify(scoped).toLowerCase()).not.toContain("eligib");
   });
 });
 

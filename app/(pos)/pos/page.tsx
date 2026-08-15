@@ -24,6 +24,11 @@ export default function PosHomePage() {
           A-la-carte items
         </LinkButton>
       </div>
+      <div className="mt-4">
+        <LinkButton href="/pos/charge-policy" variant="secondary" className="h-16 w-full text-lg">
+          Charge policy
+        </LinkButton>
+      </div>
     </section>
   );
 }

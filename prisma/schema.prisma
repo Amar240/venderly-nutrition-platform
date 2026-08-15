@@ -121,6 +121,9 @@ model District {
   // External compliance input. Woodbridge's seed uses the 93.8% FNS federal
   // default because no Delaware-specific published percentage was found (D-14).
   stateAttendanceFactorBps       Int?
+  // District-authored plain-text unpaid meal charge policy. Seed stays unset
+  // until Woodbridge supplies its own wording (D-19/D-20).
+  unpaidMealChargePolicyText      String?
   timeZone                       String   @default("America/New_York")
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt

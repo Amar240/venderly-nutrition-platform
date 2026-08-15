@@ -113,6 +113,18 @@ describe.skipIf(!dbUp)("guardian household meal read model", () => {
     expect(freeChild.moneyText).toBe("$9.00 for snacks and extras");
   });
 
+  it("shows negative money as owed while saying the meal is still served", async () => {
+    const f = await freshHousehold({ cep: false, tier: "PAID", balance: -825 });
+    const child = (await getHousehold(
+      { principalType: "guardian", guardianId: f.guardian.id, role: "GUARDIAN" },
+    ))[0]!;
+    expect(child.mealCoverageText).toBe("Lunch is still served, even while money is owed.");
+    expect(child.moneyText).toBe("$8.25 owed · lunch costs $3.25");
+    expect(child.warnings).toContain("Marcus has $8.25 owed.");
+    expect(child.warnings).toContain("Marcus will still be served if it runs out.");
+    expect(JSON.stringify(child)).not.toMatch(/\b(he|him|his|she|her)\b/i);
+  });
+
   it("returns daily states before and at/after service end, omitting unserved meals", async () => {
     const f = await freshHousehold({ cep: false, tier: "PAID" });
     const today = dateOnlyUtc(2026, 8, 15);

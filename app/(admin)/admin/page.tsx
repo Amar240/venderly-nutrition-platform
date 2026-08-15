@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getAppSession } from "@/server/auth/session";
 import { districtDashboard } from "@/server/reports/dashboard";
 import { MoneyDisplay } from "@/components/ui/money";
@@ -27,7 +28,12 @@ export default async function AdminDashboardPage() {
     { label: "Money added", value: <MoneyDisplay amountCents={t.depositsCents} /> },
     { label: "Mistakes fixed", value: `${t.adjustmentsCount}` },
     { label: "Money low", value: t.lowBalanceCount.toLocaleString() },
-    { label: "Money below $0", value: t.negativeBalanceCount.toLocaleString() },
+    {
+      label: "Money owed",
+      value: t.negativeBalanceCount > 0
+        ? <Link className="text-danger underline-offset-2 hover:underline" href="/admin/reports/arrears">{t.negativeBalanceCount.toLocaleString()}</Link>
+        : t.negativeBalanceCount.toLocaleString(),
+    },
   ];
 
   return (
@@ -93,7 +99,7 @@ export default async function AdminDashboardPage() {
               <th scope="col" className="px-4 py-3 text-right font-medium">Money added</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Mistakes fixed</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Low</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Below $0</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Money owed</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +113,12 @@ export default async function AdminDashboardPage() {
                 <td className="px-4 py-3 text-right tabular">{s.lowBalanceCount}</td>
                 <td className="px-4 py-3 text-right tabular">
                   {s.negativeBalanceCount > 0 ? (
-                    <span className="text-danger">{s.negativeBalanceCount}</span>
+                    <Link
+                      className="text-danger underline-offset-2 hover:underline"
+                      href={`/admin/reports/arrears?schoolId=${s.schoolId}`}
+                    >
+                      {s.negativeBalanceCount}
+                    </Link>
                   ) : (
                     s.negativeBalanceCount
                   )}

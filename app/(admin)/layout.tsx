@@ -19,6 +19,7 @@ export default async function AdminLayout({
     { label: "Students", href: "/admin/students" },
     { label: "Classes", href: "/admin/classes" },
     { label: "Reports", href: "/admin/reports" },
+    { label: "Charge policy", href: "/admin/charge-policy" },
   ];
   // Delivery log: district admin+. Staff activity + settings: super admin only.
   if (isDistrictAdminPlus) nav.push({ label: "Notifications", href: "/admin/notifications" });

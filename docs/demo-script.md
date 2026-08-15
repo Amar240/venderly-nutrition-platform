@@ -77,23 +77,27 @@ Search:
 
 Open Ella Whitfield.
 
-Say: "Admin sees the ledger history and correction history together. This seeded example includes an incorrect synthetic cash deposit and a linked offsetting correction, so the history has depth before I touch anything."
+Say: "Admin sees the money history and the record of mistakes fixed together. This seeded example includes an incorrect synthetic cash payment and a linked fix, so the history has depth before I touch anything."
 
-In `Adjust balance`, enter:
-- Direction: `Add funds`
-- Amount: `$1.00`
-- Reason: `Verified cash deposit correction`
+In `Fix a mistake`, choose:
+- Run A: `Snack was returned`
+- Run B: `Snack was returned`
 
-Submit `Apply adjustment`.
+Choose a different seeded `Cookie return demo` charge for each run.
 
-Say: "Every money-moving correction requires a reason and creates a new ledger row plus audit evidence. The original entry is not edited."
+Use:
+- Reason: `Snack returned during demo`
 
-Open `Audit log` and, if useful, filter by:
-- Action: `LEDGER_ADJUSTMENT`
+Review `Here's what will happen`, then submit `Give back $1.25`.
+
+Say: "Every money fix requires a reason and creates a new linked row plus staff evidence. The original payment or charge is not edited."
+
+Open `Staff activity` and look for:
+- `Gave money back`
 
 Say: "This audit view is super-admin-only. Restricted admin pages are concealed rather than partially exposed."
 
-Open `Reports`, then `Transaction export`.
+Open `Reports`, then `Download money history`.
 
 Download the CSV.
 

@@ -27,14 +27,17 @@ export default async function GuardianHomePage() {
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-ink">My household</h1>
           <p className="mt-1 text-sm text-ink-muted">
             Meals, snack money, and activity for your linked children.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <LinkButton href="/guardian/charge-policy" variant="secondary">
+            Charge policy
+          </LinkButton>
           {canTransfer && (
             <LinkButton href="/guardian/transfer" variant="secondary">
               Move money

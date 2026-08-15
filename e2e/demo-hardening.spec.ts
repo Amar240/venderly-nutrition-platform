@@ -217,11 +217,18 @@ test("admin laptop flow covers search, correction, export error surface, and imp
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
   await page.getByRole("link", { name: "100001" }).click();
-  await expect(page.getByText("Incorrect synthetic cash payment")).toBeVisible();
-  await page.getByLabel("Amount").first().fill("1.00");
-  await page.getByLabel("Reason").first().fill("Verified cash deposit correction");
-  await page.getByRole("button", { name: "Add $1.00" }).click();
-  await expect(page.getByText("Recorded.")).toBeVisible();
+  await expect(page.getByText(/Seeded demo correction for an incorrect cash payment/).first()).toBeVisible();
+  await expect(page.getByText(/Corrects: Payment/)).toBeVisible();
+  await page.getByLabel("Snack was returned").check();
+  const returnedSnack = page.getByLabel("Payment or charge");
+  const returnedSnackValue = await returnedSnack.locator("option", { hasText: "Cookie return demo A" }).getAttribute("value");
+  expect(returnedSnackValue).toBeTruthy();
+  await returnedSnack.selectOption(returnedSnackValue!);
+  await page.getByLabel("Reason saved with your name").first().fill("Snack returned during demo");
+  await page.getByRole("button", { name: "Review what will happen" }).click();
+  await expect(page.getByRole("heading", { name: "Here's what will happen" })).toBeVisible();
+  await page.getByRole("button", { name: "Give back $1.25" }).click();
+  await expect(page.getByText("$1.25 was given back and kept with your name and the reason.")).toBeVisible();
 
   await page.goto("/admin/reports/export");
   const downloadPromise = page.waitForEvent("download");

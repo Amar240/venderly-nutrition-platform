@@ -177,6 +177,31 @@ D-16 deliberately leaves a district decision to add or take money unlinked to an
 
 **Fix while here:** `recordAdjustment` currently stores the description as `Mistake fixed: ${reason}` unconditionally. Correct for D-16's linked "something else" adjustments — those are genuinely fixing a mistake — wrong for a district decision, which isn't one. Left as-is the sentence reads "Mistake fixed: District decision to change snack money," the same operation-shaped mislabeling item 7 was built to remove. Compose the sentence display-side from type, link presence, and reason — don't trust a one-size-fits-all stored description.
 
+## D-18 · Arrears duration is a current streak, not lifetime history
+**Decided:** stage C · **Status:** settled
+
+The admin arrears view needs to show how long an account has been below zero. **Decision:** count from the first charge after the most recent point the derived balance was zero or positive — a current streak that resets every time the balance recovers.
+
+Rejected: lifetime-first-ever-negative, which would overstate an account that recovered and later went negative again — the same overclaiming instinct D-12 already rules out, just applied to duration instead of attendance. Also rejected: most-recent-charge, which doesn't measure a duration at all — it's nearly always "today" and tells staff nothing.
+
+Reuse the existing `deriveBalanceCents` pattern to compute the streak; don't add a second balance-tracking mechanism.
+
+## D-19 · The district charge policy is edited by district admin and above, read by whoever needs it
+**Decided:** stage C · **Status:** settled
+
+Same treatment as D-2's pricing config and D-14's attendance factor: district-level compliance config, not a platform-provisioning task. **Decision:** `DISTRICT_ADMIN` and `SUPER_ADMIN` may edit the policy text. `SCHOOL_STAFF` and `CASHIER` can read it — someone fielding a guardian's question at the front office needs the exact wording — but cannot change it.
+
+Rejected: locking it to `SUPER_ADMIN` only. That role is reserved for genuinely platform-level provisioning (D-11), explicitly called a demo shortcut rather than a general pattern for "important things." The charge policy is the district's own local determination under federal guidance ("SFAs have discretion in developing the specifics") — locking Woodbridge out of editing text they're required to keep current would be an unnecessary bottleneck.
+
+## D-20 · Group-contact and write-off actions are deferred, not part of Stage C item 9
+**Decided:** stage C · **Status:** settled
+
+`design-spec-03-guardian.md`'s arrears section also describes a group-contact action (notifying multiple guardians in arrears at once) and a write-off action (forgiving debt). Neither was in item 9's actual scope — a read-only arrears listing, the always-serve guardian copy fix, and the charge-policy flow.
+
+**Decision:** defer both. Group-contact is a new notification trigger; D-5 already treats notification generation as something scoped deliberately per feature, not bundled in as a side effect of an unrelated item — it needs its own pass on what the message says, whether it quotes the district's exact policy text, and the same D-12/no-pronoun language rules. Write-off is a real debt-forgiving money action with likely nonprofit-food-service-account accounting implications that haven't been researched at all, and it isn't named anywhere in the build order — building it ungoverned by its own spec is the same premature-feature mistake this project avoided elsewhere (free/reduced application management, deliberately named but not built).
+
+Neither is rejected as a future capability — both should surface as their own scoped item when actually taken up, not as an unplanned add-on here.
+
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 
