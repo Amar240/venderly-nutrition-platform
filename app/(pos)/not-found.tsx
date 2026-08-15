@@ -5,8 +5,8 @@ export default function PosNotFound() {
   return (
     <EmptyState
       title="That serving page is not available"
-      body="Use the POS home screen to choose breakfast, lunch, or a-la-carte service."
-      action={<LinkButton href="/pos">Go to POS home</LinkButton>}
+      body="Use the register home screen to choose breakfast, lunch, or a-la-carte service."
+      action={<LinkButton href="/pos">Go to register home</LinkButton>}
     />
   );
 }

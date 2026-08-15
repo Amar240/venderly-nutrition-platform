@@ -15,18 +15,18 @@ export default async function AdminDashboardPage() {
 
   const stats: { label: string; value: React.ReactNode }[] = [
     { label: "Meals served", value: t.mealsServed.toLocaleString() },
-    { label: "Overrides (separate)", value: t.mealOverrides.toLocaleString() },
-    { label: "Deposits", value: <MoneyDisplay amountCents={t.depositsCents} /> },
-    { label: "Adjustments", value: `${t.adjustmentsCount}` },
-    { label: "Low balance", value: t.lowBalanceCount.toLocaleString() },
-    { label: "Negative balance", value: t.negativeBalanceCount.toLocaleString() },
+    { label: "Extra meals", value: t.mealOverrides.toLocaleString() },
+    { label: "Money added", value: <MoneyDisplay amountCents={t.depositsCents} /> },
+    { label: "Mistakes fixed", value: `${t.adjustmentsCount}` },
+    { label: "Money low", value: t.lowBalanceCount.toLocaleString() },
+    { label: "Money below $0", value: t.negativeBalanceCount.toLocaleString() },
   ];
 
   return (
     <section>
       <h1 className="text-2xl font-medium text-ink">Overview</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        {dash.periodLabel} · figures derived from the ledger. Low-balance is a current count.
+        {dash.periodLabel} · figures come from recorded meals and money activity. Money low is a current count.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -45,11 +45,11 @@ export default async function AdminDashboardPage() {
             <tr className="border-b border-border text-left text-ink-muted">
               <th scope="col" className="px-4 py-3 font-medium">School</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Served</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Overrides</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Deposits</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Adjustments</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Extra meals</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Money added</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Mistakes fixed</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Low</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Negative</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Below $0</th>
             </tr>
           </thead>
           <tbody>
@@ -72,7 +72,7 @@ export default async function AdminDashboardPage() {
             ))}
             {dash.schools.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">No schools in scope.</td>
+                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">Nothing needs you today.</td>
               </tr>
             )}
           </tbody>

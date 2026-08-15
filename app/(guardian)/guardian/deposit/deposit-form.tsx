@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { startDepositAction, type DepositState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertCircleIcon } from "@/components/icons";
+import { formatCents, parseDollarsToCents } from "@/lib/utils";
 
 interface ChildOption {
   studentId: string;
@@ -17,6 +19,11 @@ const initialState: DepositState = { error: null };
 
 export function DepositForm({ students }: { students: ChildOption[] }) {
   const [state, formAction] = useFormState(startDepositAction, initialState);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const totalCents = Object.values(amounts).reduce((sum, value) => {
+    const cents = parseDollarsToCents(value);
+    return cents && cents > 0 ? sum + cents : sum;
+  }, 0);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -52,6 +59,8 @@ export function DepositForm({ students }: { students: ChildOption[] }) {
                       name={fieldId}
                       inputMode="decimal"
                       placeholder="0.00"
+                      value={amounts[child.studentId] ?? ""}
+                      onChange={(e) => setAmounts((current) => ({ ...current, [child.studentId]: e.target.value }))}
                       aria-invalid={fieldError ? true : undefined}
                       aria-describedby={fieldError ? `${fieldId}-err` : undefined}
                     />
@@ -68,16 +77,16 @@ export function DepositForm({ students }: { students: ChildOption[] }) {
         })}
       </ul>
 
-      <SubmitButton />
+      <SubmitButton totalCents={totalCents} />
     </form>
   );
 }
 
-function SubmitButton() {
+function SubmitButton({ totalCents }: { totalCents: number }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="w-full" loading={pending}>
-      Continue to checkout
+      {totalCents > 0 ? `Add ${formatCents(totalCents)}` : "Review deposit"}
     </Button>
   );
 }

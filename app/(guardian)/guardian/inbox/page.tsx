@@ -15,11 +15,11 @@ export default async function InboxPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-medium text-ink">Inbox</h1>
-          <p className="mt-1 text-sm text-ink-muted">Updates about your household&apos;s balances.</p>
+          <p className="mt-1 text-sm text-ink-muted">Updates about meals and snack money.</p>
         </div>
         {hasUnread && (
           <form action={markInboxReadAction}>
-            <Button type="submit" variant="secondary">Mark all read</Button>
+            <Button type="submit" variant="secondary">Mark updates as read</Button>
           </form>
         )}
       </div>
@@ -44,8 +44,8 @@ export default async function InboxPage() {
         {notifications.length === 0 && (
           <li>
             <EmptyState
-              title="No notifications yet"
-              body="Balance updates, deposit confirmations, and transfer notices will appear here when there is something to review."
+              title="You're up to date."
+              body="Meal and snack money updates will appear here when there is something to review."
             />
           </li>
         )}

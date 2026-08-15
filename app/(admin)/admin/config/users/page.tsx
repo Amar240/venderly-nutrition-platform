@@ -17,10 +17,10 @@ export default async function UsersConfigPage() {
   }
   return (
     <section className="mx-auto max-w-3xl">
-      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Configuration</Link>
-      <h1 className="mt-2 text-2xl font-medium text-ink">Staff users</h1>
+      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Settings</Link>
+      <h1 className="mt-2 text-2xl font-medium text-ink">Staff access</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        New users get the shared demo password and a one-time TOTP secret. Users are deactivated, never deleted.
+        New staff get the shared demo password and a one-time authenticator secret. Access is turned off, never deleted.
       </p>
       <div className="mt-6">
         <UsersManager

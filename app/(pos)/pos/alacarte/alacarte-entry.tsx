@@ -83,7 +83,7 @@ export function AlacarteEntry({ items }: { items: ItemOption[] }) {
             </Button>
           ))}
           {items.length === 0 && (
-            <p className="text-sm text-ink-muted">No a-la-carte items available.</p>
+            <p className="text-sm text-ink-muted">Add a snack or extra item in settings to make it available at the register.</p>
           )}
         </div>
       </section>

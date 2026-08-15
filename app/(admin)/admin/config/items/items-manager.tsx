@@ -17,7 +17,7 @@ interface ItemRow {
 const initial: ConfigState = { error: null, ok: false };
 
 function Feedback({ state }: { state: ConfigState }) {
-  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Saved</span>;
+  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Updated</span>;
   if (state.error) return <span className="flex items-center gap-1 text-sm text-danger"><AlertCircleIcon /> {state.error}</span>;
   return null;
 }
@@ -41,7 +41,7 @@ export function ItemsManager({ items }: { items: ItemRow[] }) {
             <Label htmlFor="new-price">Price ($)</Label>
             <Input id="new-price" name="price" inputMode="decimal" placeholder="0.00" required />
           </div>
-          <Submit>Add</Submit>
+          <Submit>Add item</Submit>
           <Feedback state={createState} />
         </div>
       </form>
@@ -50,7 +50,7 @@ export function ItemsManager({ items }: { items: ItemRow[] }) {
         {items.map((item) => (
           <ItemEditRow key={item.id} item={item} />
         ))}
-        {items.length === 0 && <li className="text-sm text-ink-muted">No items yet.</li>}
+        {items.length === 0 && <li className="text-sm text-ink-muted">Add a snack or extra item to make it available at the register.</li>}
       </ul>
     </div>
   );
@@ -72,17 +72,17 @@ function ItemEditRow({ item }: { item: ItemRow }) {
             <Label htmlFor={`price-${item.id}`}>Price ($)</Label>
             <Input id={`price-${item.id}`} name="price" inputMode="decimal" defaultValue={(item.priceCents / 100).toFixed(2)} required />
           </div>
-          <Submit>Save</Submit>
+          <Submit>Update item</Submit>
         </form>
         <form action={toggleAction} className="flex items-center gap-2">
           <input type="hidden" name="itemId" value={item.id} />
           <input type="hidden" name="active" value={item.active ? "false" : "true"} />
           <Button type="submit" variant={item.active ? "secondary" : "primary"} size="md">
-            {item.active ? "Deactivate" : "Activate"}
+            {item.active ? "Turn off item" : "Turn on item"}
           </Button>
         </form>
         <div className="ml-auto text-sm text-ink-muted">
-          {formatCents(item.priceCents)} · {item.active ? "active" : "inactive"}
+          {formatCents(item.priceCents)} · {item.active ? "available" : "not available"}
         </div>
       </div>
       <div className="mt-1"><Feedback state={saveState.ok || saveState.error ? saveState : toggleState} /></div>

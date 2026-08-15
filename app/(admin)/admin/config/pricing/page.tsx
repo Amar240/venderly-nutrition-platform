@@ -29,10 +29,10 @@ export default async function PricingConfigPage() {
 
   return (
     <section className="mx-auto max-w-xl">
-      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Configuration</Link>
-      <h1 className="mt-2 text-2xl font-medium text-ink">Pricing config</h1>
+      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Settings</Link>
+      <h1 className="mt-2 text-2xl font-medium text-ink">Meal prices</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        District defaults. When CEP is on, breakfast and lunch are $0 for everyone.
+        District defaults. When free meals for all students is on, breakfast and lunch cost $0 for everyone.
       </p>
       <div className="mt-6">
         <PricingForm initial={initial} />

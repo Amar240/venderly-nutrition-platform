@@ -7,8 +7,8 @@ export default function AdminError({ reset }: { error: Error & { digest?: string
   return (
     <EmptyState
       title="Admin data could not load"
-      body="The request failed before the page finished loading. Nothing was changed. Retry, or use the navigation to return to a known admin page."
-      action={<Button type="button" onClick={reset}>Retry</Button>}
+      body="The page could not load. Nothing was changed — try again or use the navigation to return to a known page."
+      action={<Button type="button" onClick={reset}>Try again</Button>}
     />
   );
 }

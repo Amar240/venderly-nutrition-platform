@@ -190,6 +190,8 @@ describe.skipIf(!dbUp)("transaction export", () => {
     expect(lines[0]).toBe(`"Prototype notice","${PROTOTYPE_BANNER_TEXT.replace(/"/g, '""')}"`);
     expect(lines[1]).toBe("");
     expect(lines[2]).toContain("Student number");
+    expect(csv).toContain('"Payment"');
+    expect(csv).not.toContain('"DEPOSIT"');
     expect(csv).toContain(`"'=Deposit, ""simulated"""`); // formula guard + quotes escaped
     expect(csv.toLowerCase()).not.toContain("tier");
     expect(csv.toLowerCase()).not.toContain("eligib");

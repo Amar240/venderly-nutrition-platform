@@ -15,7 +15,7 @@ interface ExportFormProps {
 
 function filenameFromDisposition(disposition: string | null): string {
   const match = disposition?.match(/filename="([^"]+)"/);
-  return match?.[1] ?? "transactions.csv";
+  return match?.[1] ?? "money-history.csv";
 }
 
 export function ExportForm({ schools }: ExportFormProps) {
@@ -30,8 +30,8 @@ export function ExportForm({ schools }: ExportFormProps) {
       if (!res.ok) {
         setError(
           res.status === 403
-            ? "You are not allowed to export transactions for that scope."
-            : "The export could not be created. Check the filters and try again.",
+            ? "You don't have access to that. Ask a district administrator if you need it."
+            : "The money history could not be downloaded. Check the filters and try again.",
         );
         return;
       }
@@ -45,7 +45,7 @@ export function ExportForm({ schools }: ExportFormProps) {
       link.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setError("The export could not be created because the network request failed. Try again when the connection is stable.");
+      setError("You've lost your connection. Nothing was lost — try again when you're back online.");
     } finally {
       setBusy(false);
     }
@@ -72,7 +72,7 @@ export function ExportForm({ schools }: ExportFormProps) {
           <Input id="to" name="to" type="date" />
         </div>
       </div>
-      <Button type="submit" loading={busy}>Download CSV</Button>
+      <Button type="submit" loading={busy}>Download money history</Button>
       {error && (
         <p role="alert" className="flex items-start gap-2 text-sm text-danger">
           <AlertCircleIcon className="mt-1 shrink-0" />

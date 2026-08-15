@@ -20,7 +20,7 @@ export default async function DepositPage() {
       <h1 className="mt-4 text-2xl font-medium text-ink">Add money</h1>
       <p className="mt-1 text-sm text-ink-muted">
         Enter an amount for one or more children, then continue to the simulated
-        checkout. No real payment is processed.
+        checkout. No real card is charged.
       </p>
 
       <div className="mt-6">

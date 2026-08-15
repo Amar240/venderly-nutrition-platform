@@ -6,17 +6,7 @@ import { AuthError } from "@/server/auth/errors";
 import { MoneyDisplay } from "@/components/ui/money";
 import { formatCents } from "@/lib/utils";
 import { CorrectionsPanel } from "./corrections-panel";
-
-const TYPE_LABEL: Record<string, string> = {
-  DEPOSIT: "Deposit",
-  MEAL_CHARGE: "Meal",
-  ALACARTE_CHARGE: "A-la-carte",
-  TRANSFER_DEBIT: "Transfer out",
-  TRANSFER_CREDIT: "Transfer in",
-  ADJUSTMENT: "Adjustment",
-  REFUND: "Refund",
-  CORRECTION: "Correction",
-};
+import { auditActionLabel, auditActorLabel, moneyActivityLabel } from "@/lib/presentation-labels";
 
 const REFUNDABLE = new Set(["DEPOSIT", "MEAL_CHARGE", "ALACARTE_CHARGE", "TRANSFER_CREDIT", "TRANSFER_DEBIT"]);
 
@@ -48,7 +38,7 @@ export default async function StudentDetailPage({ params }: { params: { studentI
   const shortId = (id: string) => id.slice(-6);
   const refundable = detail.history
     .filter((e) => REFUNDABLE.has(e.type))
-    .map((e) => ({ id: e.id, label: `${TYPE_LABEL[e.type]} ${formatCents(e.amountCents)} · ${fmtDate(e.createdAt)}` }));
+    .map((e) => ({ id: e.id, label: `${moneyActivityLabel(e.type)} ${formatCents(e.amountCents)} · ${fmtDate(e.createdAt)}` }));
 
   return (
     <section className="space-y-6">
@@ -62,11 +52,11 @@ export default async function StudentDetailPage({ params }: { params: { studentI
               {detail.firstName} {detail.lastName}
             </h1>
             <p className="text-sm text-ink-muted">
-              #{detail.studentNumber} · Grade {detail.grade} · {detail.schoolName} · {detail.enrollmentStatus}
+              #{detail.studentNumber} · Grade {detail.grade} · {detail.schoolName} · {detail.enrollmentStatus === "ACTIVE" ? "Current" : "Left"}
             </p>
           </div>
           <div className="text-right">
-            <div className="text-xs text-ink-muted">Balance (from ledger)</div>
+            <div className="text-xs text-ink-muted">Snack money</div>
             <div className="text-2xl">
               <MoneyDisplay amountCents={detail.balanceCents} />
             </div>
@@ -76,15 +66,15 @@ export default async function StudentDetailPage({ params }: { params: { studentI
 
       {detail.canCorrect && <CorrectionsPanel studentId={detail.id} refundable={refundable} />}
 
-      {/* Ledger history — original and corrective activity side by side. */}
-      <Panel title="Ledger history">
+      {/* Money history — original and corrective activity side by side. */}
+      <Panel title="Money history">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-ink-muted">
               <th scope="col" className="px-4 py-2 font-medium">Date</th>
               <th scope="col" className="px-4 py-2 font-medium">Activity</th>
               <th scope="col" className="px-4 py-2 text-right font-medium">Amount</th>
-              <th scope="col" className="px-4 py-2 font-medium">Corrects</th>
+              <th scope="col" className="px-4 py-2 font-medium">Linked fix</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +82,7 @@ export default async function StudentDetailPage({ params }: { params: { studentI
               <tr key={e.id} className="border-b border-border last:border-0">
                 <td className="whitespace-nowrap px-4 py-2 text-ink-muted">{fmtDate(e.createdAt)}</td>
                 <td className="px-4 py-2 text-ink">
-                  {TYPE_LABEL[e.type] ?? e.type}
+                  {moneyActivityLabel(e.type)}
                   <span className="block text-xs text-ink-muted">{e.description}</span>
                 </td>
                 <td className="px-4 py-2 text-right"><MoneyDisplay amountCents={e.amountCents} sign /></td>
@@ -123,7 +113,7 @@ export default async function StudentDetailPage({ params }: { params: { studentI
                     {m.mealType === "BREAKFAST" ? "Breakfast" : "Lunch"}
                     {m.overrideSeq > 0 && (
                       <span className="ml-2 rounded-pill bg-warn-wash px-2 py-0.5 text-xs text-warn">
-                        Override
+                        Extra meal
                       </span>
                     )}
                     {m.overrideReason && <span className="block text-xs text-ink-muted">{m.overrideReason}</span>}
@@ -181,18 +171,18 @@ export default async function StudentDetailPage({ params }: { params: { studentI
           </ul>
         </Panel>
 
-        <Panel title="Audit history">
+        <Panel title="What staff have done, and why">
           <ul className="divide-y divide-border">
             {detail.audit.map((a) => (
               <li key={a.id} className="px-4 py-2">
-                <div className="text-ink">{a.action}</div>
+                <div className="text-ink">{auditActionLabel(a.action)}</div>
                 <div className="text-xs text-ink-muted">
-                  {fmtDate(a.createdAt)} · {a.actorType}
+                  {fmtDate(a.createdAt)} · {auditActorLabel(a.actorType)}
                   {a.reason ? ` · ${a.reason}` : ""}
                 </div>
               </li>
             ))}
-            {detail.audit.length === 0 && <li className="px-4 py-3 text-ink-muted">No audit entries.</li>}
+            {detail.audit.length === 0 && <li className="px-4 py-3 text-ink-muted">Nothing has happened on this account yet. Money added and meals taken will show here.</li>}
           </ul>
         </Panel>
       </div>
@@ -213,7 +203,7 @@ function Empty({ span }: { span: number }) {
   return (
     <tr>
       <td colSpan={span} className="px-4 py-6 text-center text-ink-muted">
-        No records yet. New activity will appear here after it is recorded.
+        Nothing has happened on this account yet. Money added and meals taken will show here.
       </td>
     </tr>
   );

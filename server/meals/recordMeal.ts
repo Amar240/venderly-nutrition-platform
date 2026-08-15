@@ -108,7 +108,7 @@ export async function recordMeal(input: {
             accountId: student.account.id,
             type: "MEAL_CHARGE",
             amountCents: -priceCents,
-            description: `${input.mealType} meal`,
+            description: input.mealType === "BREAKFAST" ? "Breakfast meal" : "Lunch meal",
             actorType: "USER",
             actorId: staff.userId,
           },

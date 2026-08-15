@@ -8,7 +8,7 @@ import type { MealType } from "@prisma/client";
 /**
  * Guardian household dashboard. Children are reached ONLY through the verified
  * GuardianStudent link (getHousehold enforces it). Balances and status are
- * computed server-side; the UI just renders them. No eligibility / price tier.
+ * computed server-side; the UI renders resolved prices only for linked children.
  */
 function StatusIcon({ state }: { state: "ate" | "not_yet" | "not_recorded" }) {
   if (state === "ate") return <CheckCircleIcon className="mt-0.5 shrink-0 text-success" />;
@@ -31,13 +31,13 @@ export default async function GuardianHomePage() {
         <div>
           <h1 className="text-2xl font-medium text-ink">My household</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Balances and activity for your linked children.
+            Meals, snack money, and activity for your linked children.
           </p>
         </div>
         <div className="flex gap-2">
           {canTransfer && (
             <LinkButton href="/guardian/transfer" variant="secondary">
-              Transfer
+              Move money
             </LinkButton>
           )}
           <LinkButton href="/guardian/deposit">Add money</LinkButton>
@@ -123,7 +123,7 @@ export default async function GuardianHomePage() {
         {household.length === 0 && (
           <EmptyState
             title="No linked children yet"
-            body="This guardian login is active, but no students are linked to it. Ask an admin to verify the household link, then refresh this page."
+            body="This guardian login is active, but no students are linked to it. Ask the district to verify your household link, then refresh this page."
             className="sm:col-span-2"
           />
         )}

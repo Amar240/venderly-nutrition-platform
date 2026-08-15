@@ -22,15 +22,15 @@ export default async function DepositsReport({
   return (
     <section>
       <Link href="/admin/reports" className="text-sm text-ink-muted hover:text-ink">← Reports</Link>
-      <h1 className="mt-2 text-2xl font-medium text-ink">Monthly deposits</h1>
-      <p className="mt-1 text-sm text-ink-muted">Aggregated from the ledger, per school.</p>
+      <h1 className="mt-2 text-2xl font-medium text-ink">Monthly money added</h1>
+      <p className="mt-1 text-sm text-ink-muted">Payments and money movement, per school.</p>
 
       <form action="/admin/reports/deposits" method="get" className="mt-4 flex items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="month">Month</Label>
           <Input id="month" name="month" type="month" defaultValue={monthStr} />
         </div>
-        <Button type="submit">Apply</Button>
+        <Button type="submit">Show monthly money</Button>
       </form>
 
       <div className="mt-6 overflow-x-auto rounded-card border border-border bg-surface-card">
@@ -38,9 +38,9 @@ export default async function DepositsReport({
           <thead>
             <tr className="border-b border-border text-left text-ink-muted">
               <th scope="col" className="px-4 py-3 font-medium">School</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Deposits</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Transfers</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Refunds / adj.</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Money added</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Money moved</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Money fixed</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Total</th>
             </tr>
           </thead>
@@ -55,7 +55,7 @@ export default async function DepositsReport({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-muted">No schools in scope.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-muted">Nothing needs you today.</td></tr>
             )}
           </tbody>
         </table>

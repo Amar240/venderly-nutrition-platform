@@ -16,7 +16,7 @@ export default async function SchoolsConfigPage() {
   }
   return (
     <section className="mx-auto max-w-2xl">
-      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Configuration</Link>
+      <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Settings</Link>
       <h1 className="mt-2 text-2xl font-medium text-ink">Schools</h1>
       <div className="mt-6">
         <SchoolsManager schools={schools.map((s) => ({

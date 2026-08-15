@@ -2,12 +2,7 @@ import { notFound } from "next/navigation";
 import { getAppSession } from "@/server/auth/session";
 import { getDeliveryLog } from "@/server/notifications/inbox";
 import { AuthError } from "@/server/auth/errors";
-
-const TYPE_LABEL: Record<string, string> = {
-  LOW_BALANCE: "Low balance",
-  DEPOSIT_COMPLETED: "Deposit",
-  TRANSFER_COMPLETED: "Transfer",
-};
+import { deliveryStatusLabel, notificationTypeLabel } from "@/lib/presentation-labels";
 
 /** Notification delivery log — the "did the parent get told?" trail. */
 export default async function DeliveryLogPage() {
@@ -33,7 +28,7 @@ export default async function DeliveryLogPage() {
               <th scope="col" className="px-4 py-3 font-medium">Guardian</th>
               <th scope="col" className="px-4 py-3 font-medium">Type</th>
               <th scope="col" className="px-4 py-3 font-medium">Title</th>
-              <th scope="col" className="px-4 py-3 font-medium">Delivery</th>
+              <th scope="col" className="px-4 py-3 font-medium">Sent</th>
               <th scope="col" className="px-4 py-3 font-medium">Read</th>
             </tr>
           </thead>
@@ -44,16 +39,16 @@ export default async function DeliveryLogPage() {
                   {r.createdAt.toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })}
                 </td>
                 <td className="px-4 py-3 text-ink">{r.guardianName}</td>
-                <td className="px-4 py-3 text-ink-muted">{TYPE_LABEL[r.type] ?? r.type}</td>
+                <td className="px-4 py-3 text-ink-muted">{notificationTypeLabel(r.type)}</td>
                 <td className="px-4 py-3 text-ink">{r.title}</td>
                 <td className="px-4 py-3">
-                  <span className="rounded-pill bg-success-wash px-2 py-0.5 text-xs text-success">{r.deliveryStatus}</span>
+                  <span className="rounded-pill bg-success-wash px-2 py-0.5 text-xs text-success">{deliveryStatusLabel(r.deliveryStatus)}</span>
                 </td>
                 <td className="px-4 py-3 text-ink-muted">{r.readByGuardian ? "Read" : "Unread"}</td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-ink-muted">No notifications yet.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-ink-muted">You&apos;re up to date.</td></tr>
             )}
           </tbody>
         </table>

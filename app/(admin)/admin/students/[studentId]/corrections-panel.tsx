@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   adjustAction,
@@ -12,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircleIcon, AlertCircleIcon } from "@/components/icons";
+import { TRUST_COPY } from "@/lib/presentation-labels";
+import { formatCents, parseDollarsToCents } from "@/lib/utils";
 
 const initial: CorrectionState = { error: null, ok: false };
 const selectClass =
@@ -33,7 +36,7 @@ export function CorrectionsPanel({
     <div className="rounded-card border border-border bg-surface-card p-6">
       <h2 className="text-lg font-medium text-ink">Corrections</h2>
       <p className="mt-1 text-sm text-ink-muted">
-        Every correction is recorded in the ledger and the audit log with your reason.
+        {TRUST_COPY.correction}
       </p>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <AdjustForm studentId={studentId} />
@@ -49,7 +52,7 @@ function Feedback({ state }: { state: CorrectionState }) {
   if (state.ok) {
     return (
       <p className="flex items-center gap-1 text-sm text-success">
-        <CheckCircleIcon /> Done.
+        <CheckCircleIcon /> Recorded.
       </p>
     );
   }
@@ -90,30 +93,37 @@ function ReasonField({ id }: { id: string }) {
   );
 }
 
+function actionAmountLabel(prefix: string, amount: string, fallback: string) {
+  const cents = parseDollarsToCents(amount);
+  return cents && cents > 0 ? `${prefix} ${formatCents(cents)}` : fallback;
+}
+
 function AdjustForm({ studentId }: { studentId: string }) {
   const [state, action] = useFormState(adjustAction, initial);
+  const [amount, setAmount] = useState("");
+  const [direction, setDirection] = useState("add");
   return (
-    <Card title="Adjust balance">
+    <Card title="Fix snack money">
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="flex gap-2">
           <div className="flex-1 space-y-1">
-            <Label htmlFor="adjust-direction">Direction</Label>
-            <select id="adjust-direction" name="direction" className={selectClass}>
-            <option value="add">Add funds</option>
-            <option value="remove">Remove funds</option>
+            <Label htmlFor="adjust-direction">What should happen</Label>
+            <select id="adjust-direction" name="direction" className={selectClass} value={direction} onChange={(e) => setDirection(e.target.value)}>
+            <option value="add">Add money</option>
+            <option value="remove">Remove money</option>
             </select>
           </div>
           <div className="flex-1 space-y-1">
             <Label htmlFor="adjust-amount">Amount</Label>
             <div className="flex items-center gap-1">
               <span aria-hidden className="text-ink-muted">$</span>
-              <Input id="adjust-amount" name="amount" inputMode="decimal" placeholder="0.00" required />
+              <Input id="adjust-amount" name="amount" inputMode="decimal" placeholder="0.00" required value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
           </div>
         </div>
         <ReasonField id="adjust-reason" />
-        <SubmitButton>Apply adjustment</SubmitButton>
+        <SubmitButton>{actionAmountLabel(direction === "add" ? "Add" : "Remove", amount, "Fix snack money")}</SubmitButton>
         <Feedback state={state} />
       </form>
     </Card>
@@ -122,8 +132,9 @@ function AdjustForm({ studentId }: { studentId: string }) {
 
 function ReallocateForm({ studentId }: { studentId: string }) {
   const [state, action] = useFormState(reallocateAction, initial);
+  const [amount, setAmount] = useState("");
   return (
-    <Card title="Reallocate to another student">
+    <Card title="Move money to another student">
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="space-y-1">
@@ -134,11 +145,11 @@ function ReallocateForm({ studentId }: { studentId: string }) {
           <Label htmlFor="realloc-amount">Amount</Label>
           <div className="flex items-center gap-1">
             <span aria-hidden className="text-ink-muted">$</span>
-            <Input id="realloc-amount" name="amount" inputMode="decimal" placeholder="0.00" required />
+              <Input id="realloc-amount" name="amount" inputMode="decimal" placeholder="0.00" required value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
         </div>
         <ReasonField id="realloc-reason" />
-        <SubmitButton>Reallocate</SubmitButton>
+        <SubmitButton>{actionAmountLabel("Move", amount, "Move money")}</SubmitButton>
         <Feedback state={state} />
       </form>
     </Card>
@@ -148,13 +159,13 @@ function ReallocateForm({ studentId }: { studentId: string }) {
 function RefundForm({ studentId, refundable }: { studentId: string; refundable: RefundableEntry[] }) {
   const [state, action] = useFormState(refundAction, initial);
   return (
-    <Card title="Refund an entry">
+    <Card title="Give money back">
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="space-y-1">
-          <Label htmlFor="refund-entry">Entry</Label>
+          <Label htmlFor="refund-entry">Payment or charge</Label>
           <select id="refund-entry" name="entryId" className={selectClass} required>
-            <option value="">Choose an entry…</option>
+            <option value="">Choose a payment or charge...</option>
             {refundable.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.label}
@@ -163,7 +174,7 @@ function RefundForm({ studentId, refundable }: { studentId: string; refundable: 
           </select>
         </div>
         <ReasonField id="refund-reason" />
-        <SubmitButton>Refund</SubmitButton>
+        <SubmitButton>Give money back</SubmitButton>
         <Feedback state={state} />
       </form>
     </Card>
@@ -173,7 +184,7 @@ function RefundForm({ studentId, refundable }: { studentId: string; refundable: 
 function OverrideForm({ studentId }: { studentId: string }) {
   const [state, action] = useFormState(overrideAction, initial);
   return (
-    <Card title="Duplicate-meal override">
+    <Card title="Record another meal">
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="flex gap-2">
@@ -186,12 +197,12 @@ function OverrideForm({ studentId }: { studentId: string }) {
             </select>
           </div>
           <div className="flex-1 space-y-1">
-            <Label htmlFor="override-date">Service date</Label>
+            <Label htmlFor="override-date">Meal date</Label>
             <Input id="override-date" name="serviceDate" type="date" />
           </div>
         </div>
         <ReasonField id="override-reason" />
-        <SubmitButton>Record override</SubmitButton>
+        <SubmitButton>Record another meal</SubmitButton>
         <Feedback state={state} />
       </form>
     </Card>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { CheckCircleIcon, AlertCircleIcon, InfoIcon } from "@/components/icons";
+import { staffRoleLabel } from "@/lib/presentation-labels";
 
 interface SchoolOpt { id: string; name: string }
 interface UserRow { id: string; email: string; name: string; role: string; schoolIds: string[]; disabled: boolean }
@@ -14,7 +15,7 @@ const ROLES = ["CASHIER", "SCHOOL_STAFF", "DISTRICT_ADMIN", "SUPER_ADMIN"];
 const selectClass = "min-h-touch w-full rounded-control border border-control-border bg-surface-card px-3 py-2 text-base text-ink";
 
 function Feedback({ state }: { state: ConfigState }) {
-  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Saved</span>;
+  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Updated</span>;
   if (state.error) return <span className="flex items-center gap-1 text-sm text-danger"><AlertCircleIcon /> {state.error}</span>;
   return null;
 }
@@ -43,7 +44,7 @@ export function UsersManager({ users, schools }: { users: UserRow[]; schools: Sc
   return (
     <div className="space-y-6">
       <form action={createAction} className="space-y-3 rounded-card border border-border bg-surface-card p-4">
-        <h2 className="text-sm font-medium text-ink">Add a staff user</h2>
+        <h2 className="text-sm font-medium text-ink">Add staff access</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1"><Label htmlFor="nu-email">Email</Label><Input id="nu-email" name="email" type="email" required /></div>
           <div className="space-y-1"><Label htmlFor="nu-first">First name</Label><Input id="nu-first" name="firstName" required /></div>
@@ -52,16 +53,16 @@ export function UsersManager({ users, schools }: { users: UserRow[]; schools: Sc
         <div className="space-y-1">
           <Label htmlFor="nu-role">Role</Label>
           <select id="nu-role" name="role" className={selectClass} required defaultValue="CASHIER">
-            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            {ROLES.map((r) => <option key={r} value={r}>{staffRoleLabel(r)}</option>)}
           </select>
         </div>
         <SchoolChecks schools={schools} selected={[]} />
-        <div className="flex items-center gap-3"><Submit>Create user</Submit><Feedback state={createState} /></div>
+        <div className="flex items-center gap-3"><Submit>Add staff access</Submit><Feedback state={createState} /></div>
         {createState.totpSecret && (
           <div className="flex items-start gap-2 rounded-control bg-warn-wash px-3 py-2 text-sm text-ink">
             <InfoIcon className="mt-0.5 shrink-0 text-warn" />
             <span>
-              TOTP secret (shown once, cannot be retrieved): <code className="font-medium">{createState.totpSecret}</code>.
+              Authenticator secret, shown once: <code className="font-medium">{createState.totpSecret}</code>.
               Add it to an authenticator app now. Password is the shared demo password.
             </span>
           </div>
@@ -84,13 +85,13 @@ function UserEditRow({ user, schools }: { user: UserRow; schools: SchoolOpt[] })
         <div>
           <span className="font-medium text-ink">{user.name}</span>
           <span className="ml-2 text-sm text-ink-muted">{user.email}</span>
-          {user.disabled && <span className="ml-2 rounded-pill bg-danger-wash px-2 py-0.5 text-xs text-danger">Disabled</span>}
+          {user.disabled && <span className="ml-2 rounded-pill bg-danger-wash px-2 py-0.5 text-xs text-danger">Access off</span>}
         </div>
         <form action={toggleAction}>
           <input type="hidden" name="userId" value={user.id} />
           <input type="hidden" name="disabled" value={user.disabled ? "false" : "true"} />
           <Button type="submit" variant={user.disabled ? "primary" : "danger"} size="md">
-            {user.disabled ? "Reactivate" : "Deactivate"}
+            {user.disabled ? "Turn on access" : "Turn off access"}
           </Button>
         </form>
       </div>
@@ -99,11 +100,11 @@ function UserEditRow({ user, schools }: { user: UserRow; schools: SchoolOpt[] })
         <div className="space-y-1">
           <Label htmlFor={`role-${user.id}`}>Role</Label>
           <select id={`role-${user.id}`} name="role" className={selectClass} defaultValue={user.role}>
-            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            {ROLES.map((r) => <option key={r} value={r}>{staffRoleLabel(r)}</option>)}
           </select>
         </div>
         <SchoolChecks schools={schools} selected={user.schoolIds} />
-        <div className="flex items-center gap-3"><Submit>Save</Submit><Feedback state={saveState.ok || saveState.error ? saveState : toggleState} /></div>
+        <div className="flex items-center gap-3"><Submit>Update staff access</Submit><Feedback state={saveState.ok || saveState.error ? saveState : toggleState} /></div>
       </form>
     </li>
   );

@@ -7,8 +7,8 @@ export default function GuardianError({ reset }: { error: Error & { digest?: str
   return (
     <EmptyState
       title="Household information could not load"
-      body="The prototype kept your session open, but the latest household data was not available. Try again, or return to this screen after the connection is stable."
-      action={<Button type="button" onClick={reset}>Retry</Button>}
+      body="Household information could not load. Nothing was changed — try again when the connection is stable."
+      action={<Button type="button" onClick={reset}>Try again</Button>}
     />
   );
 }

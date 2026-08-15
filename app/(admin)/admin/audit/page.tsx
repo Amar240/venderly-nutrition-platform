@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { auditActionLabel, auditActorLabel, auditSubjectLabel } from "@/lib/presentation-labels";
 
 /**
  * Audit log viewer — SUPER ADMIN ONLY. searchAuditLog enforces the role; a
@@ -31,13 +32,13 @@ export default async function AuditViewerPage({
 
   return (
     <section>
-      <h1 className="text-2xl font-medium text-ink">Audit log</h1>
+      <h1 className="text-2xl font-medium text-ink">Staff activity</h1>
       <p className="mt-1 text-sm text-ink-muted">Every sensitive action, most recent first.</p>
 
       <form action="/admin/audit" method="get" className="mt-4 flex flex-wrap items-end gap-2">
         <div className="space-y-1">
-          <Label htmlFor="action">Action</Label>
-          <Input id="action" name="action" defaultValue={action ?? ""} placeholder="e.g. LEDGER_ADJUSTMENT" />
+          <Label htmlFor="action">Activity type</Label>
+          <Input id="action" name="action" defaultValue={action ?? ""} placeholder="e.g. fixed mistake" />
         </div>
         <div className="space-y-1">
           <Label htmlFor="from">From</Label>
@@ -47,7 +48,7 @@ export default async function AuditViewerPage({
           <Label htmlFor="to">To</Label>
           <Input id="to" name="to" type="date" defaultValue={searchParams.to ?? ""} />
         </div>
-        <Button type="submit">Filter</Button>
+        <Button type="submit">Show matching activity</Button>
       </form>
 
       <div className="mt-6 overflow-x-auto rounded-card border border-border bg-surface-card">
@@ -55,7 +56,7 @@ export default async function AuditViewerPage({
           <thead>
             <tr className="border-b border-border text-left text-ink-muted">
               <th scope="col" className="px-4 py-3 font-medium">Time</th>
-              <th scope="col" className="px-4 py-3 font-medium">Action</th>
+              <th scope="col" className="px-4 py-3 font-medium">Activity</th>
               <th scope="col" className="px-4 py-3 font-medium">Actor</th>
               <th scope="col" className="px-4 py-3 font-medium">Subject</th>
               <th scope="col" className="px-4 py-3 font-medium">Reason</th>
@@ -67,13 +68,13 @@ export default async function AuditViewerPage({
                 <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
                   {e.createdAt.toLocaleString("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })}
                 </td>
-                <td className="px-4 py-3 text-ink">{e.action}</td>
+                <td className="px-4 py-3 text-ink">{auditActionLabel(e.action)}</td>
                 <td className="px-4 py-3 text-ink-muted">
-                  {e.actorType}
+                  {auditActorLabel(e.actorType)}
                   {e.ip ? <span className="block text-xs">{e.ip}</span> : null}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">
-                  {e.subjectType ? `${e.subjectType}` : "—"}
+                  {auditSubjectLabel(e.subjectType)}
                   {e.subjectId ? <span className="block text-xs">#{e.subjectId.slice(-6)}</span> : null}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">{e.reason ?? "—"}</td>
@@ -83,7 +84,7 @@ export default async function AuditViewerPage({
               <tr>
                 <td colSpan={5} className="px-4 py-6">
                   <EmptyState
-                    title="No audit entries match"
+                    title="Nothing matches those filters"
                     body="Clear the filters or widen the date range. Sensitive actions will appear here after they run."
                   />
                 </td>

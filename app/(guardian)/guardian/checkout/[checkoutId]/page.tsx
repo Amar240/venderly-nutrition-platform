@@ -31,7 +31,7 @@ export default async function CheckoutPage({
           Simulated hosted checkout — no real card is charged.
         </div>
 
-        <h1 className="mt-4 text-xl font-medium text-ink">Confirm your deposit</h1>
+        <h1 className="mt-4 text-xl font-medium text-ink">Review your deposit</h1>
 
         <ul className="mt-4 divide-y divide-border">
           {receipt.lines.map((line) => (

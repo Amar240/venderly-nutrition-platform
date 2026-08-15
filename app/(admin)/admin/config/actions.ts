@@ -20,8 +20,8 @@ const OK: ConfigState = { error: null, ok: true };
 const fail = (error: string): ConfigState => ({ error, ok: false });
 
 function mapError(err: unknown): ConfigState {
-  if (err instanceof AuthError) return fail("You’re not allowed to do that.");
-  if (err instanceof ConfigError) return fail(err.code === "NOT_FOUND" ? "Not found." : "Check the values (name, code, and amounts).");
+  if (err instanceof AuthError) return fail("You don't have access to that. Ask a district administrator if you need it.");
+  if (err instanceof ConfigError) return fail(err.code === "NOT_FOUND" ? "That item was not found. Refresh the page and try again." : "One of the values does not look right. Check names, codes, and amounts.");
   throw err;
 }
 function bust() {
@@ -71,7 +71,7 @@ export async function updatePricingAction(_p: ConfigState, fd: FormData): Promis
     lunchFreeCents: c("lFree"), lunchReducedCents: c("lReduced"), lunchPaidCents: c("lPaid"),
     lowBalanceThresholdCents: c("threshold"),
   };
-  if (Object.values(fields).some((v) => v === null)) return fail("All amounts must be valid dollars.");
+  if (Object.values(fields).some((v) => v === null)) return fail("One amount does not look right. Enter dollars and cents.");
   const lowBalanceMealsThreshold = Number(String(fd.get("mealsThreshold") ?? ""));
   if (!Number.isInteger(lowBalanceMealsThreshold) || lowBalanceMealsThreshold < 0) {
     return fail("Enter a whole number of meals.");

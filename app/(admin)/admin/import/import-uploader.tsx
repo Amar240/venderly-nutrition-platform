@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CheckCircleIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon } from "@/components/icons";
+import { TRUST_COPY } from "@/lib/presentation-labels";
 
 interface RowError { row?: number; field?: string; message: string; studentNumber?: string }
 type ImportResult =
@@ -30,17 +31,17 @@ export function ImportUploader() {
       if (!res.ok) {
         const message =
           res.status === 413
-            ? "That CSV is too large to import here. The prototype limit is 100 KB; export a smaller roster and try again."
+            ? "That file is larger than we can read. Ask for an export without extra columns."
             : res.status === 403
-              ? "You are not allowed to import rosters."
-              : "Upload failed. Please check the file and try again.";
+              ? "You don't have access to that. Ask a district administrator if you need it."
+              : "That file could not be uploaded. Check the file and try again.";
         setError(message);
         setResult(null);
         return;
       }
       setResult((await res.json()) as ImportResult);
     } catch {
-      setError("Upload failed.");
+      setError("You've lost your connection. Nothing was lost — try again when you're back online.");
     } finally {
       setBusy(false);
     }
@@ -53,7 +54,7 @@ export function ImportUploader() {
         className="rounded-card border border-border bg-surface-card p-6"
       >
         <div className="space-y-1">
-          <Label htmlFor="file">CSV file</Label>
+          <Label htmlFor="file">Student list file</Label>
           <input
             id="file"
             ref={inputRef}
@@ -64,7 +65,7 @@ export function ImportUploader() {
           />
         </div>
         <div className="mt-4">
-          <Button type="submit" loading={busy} disabled={!file}>Validate &amp; import</Button>
+          <Button type="submit" loading={busy} disabled={!file}>Upload student list</Button>
         </div>
         {error && <p className="mt-3 flex items-center gap-1 text-sm text-danger"><AlertCircleIcon /> {error}</p>}
       </form>
@@ -78,7 +79,7 @@ function PolicyLine({ n }: { n: number }) {
   return (
     <p className="flex items-center gap-2 text-sm text-ink">
       <InfoIcon className="shrink-0 text-brand" />
-      <span>{n} column{n === 1 ? "" : "s"} ignored by policy (birthdate, race/ethnicity, gender) — never stored.</span>
+      <span>{n === 3 ? TRUST_COPY.ignoredColumns : `${n} columns were ignored: date of birth, race, and gender. This system doesn't store them.`}</span>
     </p>
   );
 }
@@ -88,16 +89,16 @@ function ResultPanel({ result, onConfirm, busy }: { result: ImportResult; onConf
     const c = result.counts;
     return (
       <div className="rounded-card border border-border bg-surface-card p-6">
-        <p className="flex items-center gap-2 text-lg font-medium text-success"><CheckCircleIcon /> Import complete</p>
+        <p className="flex items-center gap-2 text-lg font-medium text-success"><CheckCircleIcon /> Student list uploaded</p>
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[["Created", c.created], ["Updated", c.updated], ["Marked inactive", c.inactive], ["Skipped", c.skipped]].map(([label, v]) => (
+          {[["Added", c.created], ["Updated", c.updated], ["Marked as left", c.inactive], ["Already current", c.skipped]].map(([label, v]) => (
             <div key={label as string} className="rounded-control border border-border p-3">
               <div className="text-xs text-ink-muted">{label}</div>
               <div className="text-2xl font-medium tabular text-ink">{v as number}</div>
             </div>
           ))}
         </dl>
-        {result.confirmed && <p className="mt-3 text-sm text-warn">Mass deactivation was confirmed and logged.</p>}
+        {result.confirmed && <p className="mt-3 text-sm text-warn">A large group was marked as left and recorded for review.</p>}
         <div className="mt-4"><PolicyLine n={result.ignoredColumns} /></div>
       </div>
     );
@@ -106,19 +107,19 @@ function ResultPanel({ result, onConfirm, busy }: { result: ImportResult; onConf
   if (result.status === "needs_confirmation") {
     return (
       <div className="rounded-card border border-warn bg-warn-wash p-6">
-        <p className="flex items-center gap-2 text-lg font-medium text-warn"><AlertTriangleIcon /> Confirmation required</p>
+        <p className="flex items-center gap-2 text-lg font-medium text-warn"><AlertTriangleIcon /> Check before changing students</p>
         <p className="mt-2 text-sm text-ink">
           This file would mark <span className="font-medium">{result.deactivateCount}</span> of{" "}
-          <span className="font-medium">{result.activeCount}</span> active students inactive
-          ({result.sharePct.toFixed(1)}%) — above the 10% safety threshold. This is what a truncated
-          or partial upload looks like. Nothing has been written.
+          <span className="font-medium">{result.activeCount}</span> current students as left
+          ({result.sharePct.toFixed(1)}%). That can happen when a file only has part of the district.
+          Nothing has changed.
         </p>
         <p className="mt-2 text-sm text-ink-muted">
-          Would also create {result.plan.created}, update {result.plan.updated}, skip {result.plan.skipped}.
+          It would also add {result.plan.created}, update {result.plan.updated}, and leave {result.plan.skipped} already current.
         </p>
         <div className="mt-4 flex items-center gap-3">
           <Button type="button" variant="danger" loading={busy} onClick={onConfirm}>
-            Confirm — deactivate {result.deactivateCount} and import
+            Mark {result.deactivateCount} students as left and upload
           </Button>
         </div>
         <div className="mt-4"><PolicyLine n={result.ignoredColumns} /></div>
@@ -129,8 +130,8 @@ function ResultPanel({ result, onConfirm, busy }: { result: ImportResult; onConf
   // rejected
   return (
     <div className="rounded-card border border-danger bg-danger-wash p-6">
-      <p className="flex items-center gap-2 text-lg font-medium text-danger"><AlertCircleIcon /> Not imported — fix and re-upload</p>
-      <p className="mt-1 text-sm text-ink">Nothing was written. {result.errors.length} issue{result.errors.length === 1 ? "" : "s"}:</p>
+      <p className="flex items-center gap-2 text-lg font-medium text-danger"><AlertCircleIcon /> Student list needs changes</p>
+      <p className="mt-1 text-sm text-ink">Nothing changed. Fix {result.errors.length} issue{result.errors.length === 1 ? "" : "s"} and upload again.</p>
       <div className="mt-3 max-h-80 overflow-y-auto rounded-control border border-border bg-surface-card">
         <table className="w-full text-sm">
           <thead>

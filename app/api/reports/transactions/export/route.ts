@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     status: 200,
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="transactions-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "content-disposition": `attachment; filename="money-history-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
 }

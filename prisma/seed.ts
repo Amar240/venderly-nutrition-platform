@@ -157,7 +157,7 @@ async function createStudentWithAccount(
     entries.push({
       type: "DEPOSIT",
       amountCents: balanceCents,
-      description: "Opening balance (synthetic)",
+      description: "Opening snack money (synthetic)",
       actorType: "SYSTEM",
     });
   } else {
@@ -165,7 +165,7 @@ async function createStudentWithAccount(
     entries.push({
       type: "DEPOSIT",
       amountCents: 500,
-      description: "Opening balance (synthetic)",
+      description: "Opening snack money (synthetic)",
       actorType: "SYSTEM",
     });
     entries.push({
@@ -294,7 +294,7 @@ async function main() {
         accountId: acct.id,
         type: "DEPOSIT",
         amountCents: bal,
-        description: "Opening balance (synthetic)",
+        description: "Opening snack money (synthetic)",
         actorType: "SYSTEM",
       },
     });
@@ -341,7 +341,7 @@ async function main() {
         accountId: acct.id,
         type: "DEPOSIT",
         amountCents: spec.balanceCents,
-        description: "Opening balance (synthetic)",
+        description: "Opening snack money (synthetic)",
         actorType: "SYSTEM",
       },
     });
@@ -467,14 +467,14 @@ async function main() {
       accountId: ellaAccount.id,
       type: "DEPOSIT",
       amountCents: 300,
-      description: "Incorrect synthetic cash deposit",
+      description: "Incorrect synthetic cash payment",
       actorType: "SYSTEM",
     },
   });
   await recordAdjustment({
     originalEntryId: incorrectEntry.id,
     amountCents: -300,
-    reason: "Seeded demo correction for an incorrect cash deposit",
+    reason: "Seeded demo correction for an incorrect cash payment",
     actor: {
       kind: "staff",
       session: {

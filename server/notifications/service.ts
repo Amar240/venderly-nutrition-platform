@@ -26,8 +26,8 @@ export async function notifyDepositCompleted(input: {
     districtId: first.districtId,
     schoolId: first.schoolId,
     type: "DEPOSIT_COMPLETED",
-    title: "Deposit received",
-    body: `Your deposit of ${formatCents(total)} has been added.`,
+    title: "Money added",
+    body: `${formatCents(total)} has been added to snack money.`,
   });
 }
 
@@ -48,7 +48,7 @@ export async function notifyTransferCompleted(input: {
     districtId: from.districtId,
     schoolId: from.schoolId,
     type: "TRANSFER_COMPLETED",
-    title: "Transfer complete",
+    title: "Money moved",
     body: `You moved ${formatCents(input.amountCents)} from ${from.firstName} ${from.lastName} to ${to.firstName} ${to.lastName}.`,
   });
 }
@@ -80,8 +80,8 @@ export async function notifyIfLowBalanceCrossed(
       districtId: student.districtId,
       schoolId: student.schoolId,
       type: "LOW_BALANCE",
-      title: "Low balance",
-      body: `${student.firstName} ${student.lastName}'s balance is low (${formatCents(after)}).`,
+      title: "Snack money is low",
+      body: `${student.firstName} ${student.lastName}'s snack money is low (${formatCents(after)}).`,
     });
   }
 }

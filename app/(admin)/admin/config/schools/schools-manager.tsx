@@ -24,7 +24,7 @@ function timeValue(minutes: number | null) {
 }
 
 function Feedback({ state }: { state: ConfigState }) {
-  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Saved</span>;
+  if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Updated</span>;
   if (state.error) return <span className="flex items-center gap-1 text-sm text-danger"><AlertCircleIcon /> {state.error}</span>;
   return null;
 }
@@ -44,7 +44,7 @@ export function SchoolsManager({ schools }: { schools: SchoolRow[] }) {
           <div className="space-y-1"><Label htmlFor="ns-code">Code</Label><Input id="ns-code" name="code" required /></div>
           <div className="space-y-1"><Label htmlFor="ns-breakfast">Breakfast ends</Label><Input id="ns-breakfast" name="breakfastServiceEnd" type="time" /></div>
           <div className="space-y-1"><Label htmlFor="ns-lunch">Lunch ends</Label><Input id="ns-lunch" name="lunchServiceEnd" type="time" /></div>
-          <Submit>Add</Submit>
+          <Submit>Add school</Submit>
           <Feedback state={createState} />
         </div>
       </form>
@@ -66,7 +66,7 @@ function SchoolEditRow({ school }: { school: SchoolRow }) {
         <div className="space-y-1"><Label htmlFor={`sc-${school.id}`}>Code</Label><Input id={`sc-${school.id}`} name="code" defaultValue={school.code} required /></div>
         <div className="space-y-1"><Label htmlFor={`sb-${school.id}`}>Breakfast ends</Label><Input id={`sb-${school.id}`} name="breakfastServiceEnd" type="time" defaultValue={timeValue(school.breakfastServiceEndMinutes)} /></div>
         <div className="space-y-1"><Label htmlFor={`sl-${school.id}`}>Lunch ends</Label><Input id={`sl-${school.id}`} name="lunchServiceEnd" type="time" defaultValue={timeValue(school.lunchServiceEndMinutes)} /></div>
-        <Submit>Save</Submit>
+        <Submit>Update school</Submit>
         <Feedback state={state} />
       </form>
     </li>

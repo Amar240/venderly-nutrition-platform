@@ -28,7 +28,7 @@ export default async function MealCountsReport({
       <Link href="/admin/reports" className="text-sm text-ink-muted hover:text-ink">← Reports</Link>
       <h1 className="mt-2 text-2xl font-medium text-ink">Daily meal counts</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Served (reimbursable) and overrides are counted separately, never summed.
+        Meals served and extra meals are counted separately, never summed. These are your figures to check and submit. This system doesn&apos;t file claims.
       </p>
 
       <form action="/admin/reports/meals" method="get" className="mt-4 flex flex-wrap items-end gap-2">
@@ -40,7 +40,7 @@ export default async function MealCountsReport({
           <Label htmlFor="to">To</Label>
           <Input id="to" name="to" type="date" defaultValue={toStr} />
         </div>
-        <Button type="submit">Apply</Button>
+        <Button type="submit">Show meal counts</Button>
       </form>
 
       <div className="mt-6 overflow-x-auto rounded-card border border-border bg-surface-card">
@@ -51,7 +51,7 @@ export default async function MealCountsReport({
               <th scope="col" className="px-4 py-3 font-medium">School</th>
               <th scope="col" className="px-4 py-3 font-medium">Meal</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Served</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Overrides</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Extra meals</th>
             </tr>
           </thead>
           <tbody>
@@ -65,7 +65,7 @@ export default async function MealCountsReport({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-muted">No meals in this range.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-muted">Choose a date range with recorded meals to check the totals.</td></tr>
             )}
           </tbody>
         </table>

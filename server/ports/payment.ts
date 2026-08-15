@@ -113,7 +113,7 @@ class SimulatedPaymentPort implements PaymentPort {
             amountCents: alloc.amountCents,
             idempotencyKey: `${input.eventId}:${alloc.studentId}`,
             actor: { actorType: "SYSTEM" },
-            description: "Deposit (simulated checkout)",
+            description: "Payment (simulated checkout)",
           },
           tx,
         );

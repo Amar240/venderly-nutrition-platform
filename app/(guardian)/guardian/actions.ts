@@ -33,7 +33,7 @@ export async function startDepositAction(
 ): Promise<DepositState> {
   const session = await getAppSession();
   if (!session || session.principalType !== "guardian") {
-    return { error: "Please sign in again." };
+    return { error: "You've been signed out. Sign in again to continue." };
   }
   const household = await getHousehold(session);
 
@@ -44,17 +44,17 @@ export async function startDepositAction(
     if (!raw) continue;
     const cents = parseDollarsToCents(raw);
     if (cents === null || cents <= 0) {
-      fieldErrors[child.studentId] = "Enter a valid amount";
+      fieldErrors[child.studentId] = "Enter an amount greater than $0.";
       continue;
     }
     allocations.push({ studentId: child.studentId, amountCents: cents });
   }
   if (Object.keys(fieldErrors).length > 0) {
-    return { error: "Fix the highlighted amounts.", fieldErrors };
+    return { error: "One amount does not look right. Fix the highlighted amount and try again.", fieldErrors };
   }
   const parsed = depositSchema.safeParse({ allocations });
   if (!parsed.success) {
-    return { error: "Enter an amount for at least one child." };
+    return { error: "No money amount was entered. Enter an amount for at least one child." };
   }
 
   const { redirectUrl } = await paymentPort.createCheckout({
@@ -79,14 +79,14 @@ export async function transferAction(
 ): Promise<TransferState> {
   const session = await getAppSession();
   if (!session || session.principalType !== "guardian") {
-    return { error: "Please sign in again." };
+    return { error: "You've been signed out. Sign in again to continue." };
   }
   const household = await getHousehold(session);
   const fromStudentId = String(formData.get("fromStudentId") ?? "");
   const toStudentId = String(formData.get("toStudentId") ?? "");
   const token = String(formData.get("token") ?? "");
   const cents = parseDollarsToCents(String(formData.get("amount") ?? ""));
-  if (cents === null) return { error: "Enter a valid dollar amount." };
+  if (cents === null) return { error: "That amount does not look right. Enter dollars and cents." };
 
   const parsed = transferSchema.safeParse({ fromStudentId, toStudentId, amountCents: cents });
   if (!parsed.success) {
@@ -136,10 +136,10 @@ export async function transferAction(
     }
   } catch (err) {
     if (err instanceof LedgerError && err.code === "INSUFFICIENT_FUNDS") {
-      return { error: "That's more than the source child's balance." };
+      return { error: "That's more money than is available. Enter a smaller amount." };
     }
     if (err instanceof AuthError) {
-      return { error: "You can only move money between your own children." };
+      return { error: "You don't have access to that. Ask a district administrator if you need it." };
     }
     throw err;
   }

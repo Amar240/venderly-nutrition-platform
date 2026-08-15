@@ -6,18 +6,8 @@ import { MoneyDisplay } from "@/components/ui/money";
 import { BalanceStatusPill } from "@/components/balance-status";
 import { LinkButton } from "@/components/ui/link-button";
 import { CheckCircleIcon } from "@/components/icons";
+import { moneyActivityLabel } from "@/lib/presentation-labels";
 import type { LedgerEntry } from "@prisma/client";
-
-const TYPE_LABEL: Record<string, string> = {
-  DEPOSIT: "Deposit",
-  MEAL_CHARGE: "Meal",
-  ALACARTE_CHARGE: "A-la-carte",
-  TRANSFER_DEBIT: "Transfer out",
-  TRANSFER_CREDIT: "Transfer in",
-  ADJUSTMENT: "Adjustment",
-  REFUND: "Refund",
-  CORRECTION: "Correction",
-};
 
 /** Attach a running balance to each entry (oldest → newest), then newest-first. */
 function withRunningBalance(history: LedgerEntry[]) {
@@ -53,7 +43,7 @@ export default async function ChildHistoryPage({
           role="status"
           className="mt-4 flex items-center gap-2 rounded-control bg-success-wash px-3 py-2 text-sm text-success"
         >
-          <CheckCircleIcon className="shrink-0" /> Transfer complete.
+          <CheckCircleIcon className="shrink-0" /> Money moved.
         </div>
       )}
 
@@ -67,7 +57,7 @@ export default async function ChildHistoryPage({
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-ink-muted">Balance</div>
+          <div className="text-xs text-ink-muted">Snack money</div>
           <div className="text-2xl">
             <MoneyDisplay amountCents={child.balanceCents} />
           </div>
@@ -80,19 +70,19 @@ export default async function ChildHistoryPage({
       <div className="mt-4 flex gap-2">
         <LinkButton href="/guardian/deposit">Add money</LinkButton>
         <LinkButton href="/guardian/transfer" variant="secondary">
-          Transfer
+          Move money
         </LinkButton>
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-card border border-border bg-surface-card">
         <table className="w-full text-sm">
-          <caption className="sr-only">Transaction history</caption>
+          <caption className="sr-only">Money history</caption>
           <thead>
             <tr className="border-b border-border text-left text-ink-muted">
               <th scope="col" className="px-4 py-3 font-medium">Date</th>
               <th scope="col" className="px-4 py-3 font-medium">Activity</th>
               <th scope="col" className="px-4 py-3 text-right font-medium">Amount</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">Balance</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Snack money</th>
             </tr>
           </thead>
           <tbody>
@@ -106,7 +96,7 @@ export default async function ChildHistoryPage({
                   })}
                 </td>
                 <td className="px-4 py-3 text-ink">
-                  {TYPE_LABEL[entry.type] ?? entry.type}
+                  {moneyActivityLabel(entry.type)}
                   <span className="block text-xs text-ink-muted">{entry.description}</span>
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -120,7 +110,7 @@ export default async function ChildHistoryPage({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-ink-muted">
-                  No activity yet.
+                  Nothing has happened on this account yet. Money added and meals taken will show here.
                 </td>
               </tr>
             )}

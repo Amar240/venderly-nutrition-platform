@@ -3,6 +3,7 @@ import { AuthError } from "@/server/auth/errors";
 import { reportScope } from "./scope";
 import { formatCents } from "@/lib/utils";
 import { PROTOTYPE_BANNER_TEXT } from "@/lib/prototype";
+import { moneyActivityLabel } from "@/lib/presentation-labels";
 import type { AppSession } from "@/server/auth/types";
 
 /**
@@ -94,7 +95,7 @@ export function transactionsToCsv(rows: TransactionRow[]): string {
         r.studentNumber,
         r.studentName,
         r.schoolName,
-        r.type,
+        moneyActivityLabel(r.type),
         formatCents(r.amountCents),
         r.description,
       ]

@@ -5,7 +5,7 @@ export default function AdminNotFound() {
   return (
     <EmptyState
       title="That admin page is not available"
-      body="It may be outside your role or school scope. The prototype hides restricted admin pages instead of exposing details."
+      body="You don't have access to that. Ask a district administrator if you need it."
       action={<LinkButton href="/admin">Go to admin home</LinkButton>}
     />
   );

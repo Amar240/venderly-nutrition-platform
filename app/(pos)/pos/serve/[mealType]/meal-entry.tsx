@@ -94,7 +94,7 @@ export function MealEntry({ mealType, label }: { mealType: MealType; label: stri
     ? Math.max(0, Math.ceil((Date.parse(undo.expiresAt) - clockMs) / 1000))
     : 0;
   const resultMessage = result?.status === "undone"
-    ? `${label} entry undone for ${result.studentNames.join(", ")}.`
+    ? `${label} undone for ${result.studentNames.join(", ")}.`
     : undefined;
   const resultStatus = result?.status === "unavailable" ? "undo_unavailable" : result?.status;
 

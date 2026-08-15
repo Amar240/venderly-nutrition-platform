@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyDisplay } from "@/components/ui/money";
 import { AlertCircleIcon } from "@/components/icons";
-import { parseDollarsToCents } from "@/lib/utils";
+import { formatCents, parseDollarsToCents } from "@/lib/utils";
 
 interface ChildOption {
   studentId: string;
@@ -41,9 +41,9 @@ export function TransferForm({
   function review() {
     if (!fromId || !toId) return setLocalError("Choose both children.");
     if (fromId === toId) return setLocalError("Choose two different children.");
-    if (cents === null || cents <= 0) return setLocalError("Enter a valid amount.");
+    if (cents === null || cents <= 0) return setLocalError("That amount does not look right. Enter dollars and cents.");
     if (from && cents > from.balanceCents) {
-      return setLocalError("That's more than the source child's balance.");
+      return setLocalError("That's more money than is available. Enter a smaller amount.");
     }
     setLocalError(null);
     setReviewing(true);
@@ -67,7 +67,7 @@ export function TransferForm({
         <input type="hidden" name="amount" value={amount} />
 
         <div className="rounded-card border border-border bg-surface-card p-5">
-          <p className="text-sm text-ink-muted">You&apos;re about to move</p>
+          <p className="text-sm text-ink-muted">Review the money to move</p>
           <p className="mt-1 text-2xl">
             <MoneyDisplay amountCents={cents} />
           </p>
@@ -120,7 +120,7 @@ export function TransferForm({
         </select>
         {from && (
           <p className="text-xs text-ink-muted">
-            Available: <MoneyDisplay amountCents={from.balanceCents} />
+            Available snack money: <MoneyDisplay amountCents={from.balanceCents} />
           </p>
         )}
       </div>
@@ -159,7 +159,7 @@ export function TransferForm({
       </div>
 
       <Button type="button" className="w-full" onClick={review}>
-        Review transfer
+        {cents && cents > 0 ? `Review ${formatCents(cents)}` : "Review move"}
       </Button>
     </div>
   );
@@ -169,7 +169,7 @@ function ConfirmButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" loading={pending}>
-      Confirm transfer
+      Move money
     </Button>
   );
 }

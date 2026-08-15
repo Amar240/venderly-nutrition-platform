@@ -90,7 +90,7 @@ export async function undoLastMealEntry(input: {
               accountId: originalCharge.accountId,
               type: "CORRECTION",
               amountCents: -originalCharge.amountCents,
-              description: `${event.mealType} entry undone`,
+              description: `${event.mealType === "BREAKFAST" ? "Breakfast" : "Lunch"} undone`,
               idempotencyKey: `meal-undo:${event.id}`,
               correctsEntryId: originalCharge.id,
               actorType: "USER",

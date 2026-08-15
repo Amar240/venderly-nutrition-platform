@@ -1,13 +1,14 @@
 import { prisma } from "@/server/db/client";
 import type { AppSession } from "./types";
 import type { Role } from "@prisma/client";
+import { staffRoleLabel } from "@/lib/presentation-labels";
 
 const ROLE_LABELS: Record<Role, string> = {
   GUARDIAN: "Guardian",
-  CASHIER: "Cashier",
-  SCHOOL_STAFF: "School staff",
-  DISTRICT_ADMIN: "District admin",
-  SUPER_ADMIN: "Super admin",
+  CASHIER: staffRoleLabel("CASHIER"),
+  SCHOOL_STAFF: staffRoleLabel("SCHOOL_STAFF"),
+  DISTRICT_ADMIN: staffRoleLabel("DISTRICT_ADMIN"),
+  SUPER_ADMIN: staffRoleLabel("SUPER_ADMIN"),
 };
 
 export function roleLabel(role: Role): string {

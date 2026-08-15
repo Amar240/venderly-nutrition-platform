@@ -26,7 +26,7 @@ export async function signInAction(
       // account exists (avoids user enumeration).
       return {
         error:
-          "Sign-in failed. Check your email, password, and — for staff — your authenticator code.",
+          "That password doesn't match. Try again, or reset it.",
       };
     }
     throw err;

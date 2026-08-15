@@ -29,14 +29,14 @@ export default async function DepositReturnPage({
           <InfoIcon className="mx-auto text-brand" />
           <h1 className="mt-2 text-xl font-medium text-ink">Payment processing</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            We&apos;re confirming your deposit. This usually takes a moment.
+            Your payment went through. The money will appear here in a moment.
           </p>
           <div className="mt-4">
             <LinkButton
               href={`/guardian/deposit/return/${receipt.intentId}`}
               variant="secondary"
             >
-              Refresh
+              Check payment
             </LinkButton>
           </div>
         </div>
@@ -51,7 +51,7 @@ export default async function DepositReturnPage({
           <AlertCircleIcon className="mx-auto text-danger" />
           <h1 className="mt-2 text-xl font-medium text-ink">Deposit not completed</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            No money was moved. You can try again.
+            Your card wasn&apos;t charged. Check the details and try again.
           </p>
           <div className="mt-4">
             <LinkButton href="/guardian/deposit">Back to deposit</LinkButton>
@@ -66,9 +66,9 @@ export default async function DepositReturnPage({
       <div className="rounded-card border border-border bg-surface-card p-6">
         <div className="text-center">
           <CheckCircleIcon className="mx-auto text-success" />
-          <h1 className="mt-2 text-xl font-medium text-ink">Deposit complete</h1>
+          <h1 className="mt-2 text-xl font-medium text-ink">Money added</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Your household balances have been updated.
+            Your household snack money has been updated.
           </p>
         </div>
 

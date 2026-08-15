@@ -38,14 +38,14 @@ async function scopedStudent(studentId: string) {
 }
 
 function mapError(err: unknown): CorrectionState {
-  if (err instanceof AuthError) return fail("You’re not allowed to make this correction.");
+  if (err instanceof AuthError) return fail("You don't have access to that. Ask a district administrator if you need it.");
   if (err instanceof LedgerError) {
-    if (err.code === "INSUFFICIENT_FUNDS") return fail("That’s more than the available balance.");
+    if (err.code === "INSUFFICIENT_FUNDS") return fail("That's more money than is available. Enter a smaller amount.");
     if (err.code === "REASON_REQUIRED") return fail("A reason is required.");
-    return fail("The correction could not be completed.");
+    return fail("That correction could not be recorded. Check the details and try again.");
   }
   if (err instanceof MealOverrideError) {
-    return fail(err.code === "NO_ORIGINAL" ? "There’s no meal to override for that slot." : "A reason is required.");
+    return fail(err.code === "NO_ORIGINAL" ? "No meal was found for that date. Choose a different date or meal." : "A reason is required.");
   }
   throw err;
 }
@@ -59,7 +59,7 @@ export async function adjustAction(_prev: CorrectionState, formData: FormData): 
   const amountCents = direction === "remove" ? -magnitude : magnitude;
   try {
     const { session, student } = await scopedStudent(studentId);
-    if (!student.account) return fail("This student has no account.");
+    if (!student.account) return fail("This student does not have snack money set up. Ask a district administrator to check the student record.");
     await recordAdjustment({ accountId: student.account.id, amountCents, reason, actor: { kind: "staff", session } });
   } catch (err) {
     return mapError(err);
@@ -72,7 +72,7 @@ export async function refundAction(_prev: CorrectionState, formData: FormData): 
   const studentId = String(formData.get("studentId") ?? "");
   const entryId = String(formData.get("entryId") ?? "");
   const reason = String(formData.get("reason") ?? "");
-  if (!entryId) return fail("Choose an entry to refund.");
+  if (!entryId) return fail("Choose a payment or charge to give back.");
   try {
     const { session } = await scopedStudent(studentId);
     await recordRefund({ originalEntryId: entryId, reason, actor: { kind: "staff", session } });
@@ -94,7 +94,7 @@ export async function reallocateAction(_prev: CorrectionState, formData: FormDat
     const dest = await prisma.student.findUnique({
       where: { districtId_studentNumber: { districtId: student.districtId, studentNumber: toNumber } },
     });
-    if (!dest) return fail("No student found with that number.");
+    if (!dest) return fail("No students match that number. Check the number, or search by name.");
     assertStudentInScope(session, dest); // destination must be in scope too
     await recordReallocation({ fromStudentId: studentId, toStudentId: dest.id, amountCents, reason, actor: { kind: "staff", session } });
   } catch (err) {

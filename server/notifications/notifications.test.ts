@@ -79,6 +79,7 @@ describe.skipIf(!dbUp)("notification generation", () => {
     const f = await fresh();
     await notifyDepositCompleted({ guardianId: f.guardianId, allocations: [{ studentId: f.studentId, amountCents: 2500 }] });
     const n = await prisma.notification.findFirstOrThrow({ where: { guardianId: f.guardianId, type: "DEPOSIT_COMPLETED" }, include: { deliveries: true } });
+    expect(n.title).toBe("Money added");
     expect(n.body).toContain("$25.00");
     expect(n.body.toLowerCase()).not.toContain("tier");
     expect(n.deliveries[0]?.status).toBe("DELIVERED");
@@ -108,6 +109,7 @@ describe.skipIf(!dbUp)("notification generation", () => {
     const f = await fresh(800);
     await notifyIfLowBalanceCrossed(f.studentId, 500, 1000);
     const n = await prisma.notification.findFirstOrThrow({ where: { guardianId: f.guardianId, type: "LOW_BALANCE" } });
+    expect(n.title).toBe("Snack money is low");
     expect(n.body.toLowerCase()).not.toContain("tier");
     expect(n.body.toLowerCase()).not.toContain("free");
     expect(n.body.toLowerCase()).not.toContain("reduced");
