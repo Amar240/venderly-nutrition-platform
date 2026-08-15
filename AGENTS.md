@@ -16,6 +16,27 @@ This file exists so any coding agent — Codex, Claude Code, or another — work
 - Write tests for anything touching money, authorisation, or the pricing tier. Those are the demo's trust story.
 - When a requirement is ambiguous or contradicts a settled decision, stop and ask. Four times during phases 1–5 this prevented a real defect. It is the most valuable thing an agent does on this project.
 
+## Decide these yourself — do not ask
+
+Ask about genuine conflicts and missing external facts. Do not ask about anything answerable from the rules below. Apply the default, note it in your summary, and continue.
+
+| Question | Default |
+|---|---|
+| RBAC for a new admin screen | Match the nearest existing screen. District-level config → `DISTRICT_ADMIN` and above (D-19). Same-day operational work → `SCHOOL_STAFF` and above, school-scoped (D-13). `SUPER_ADMIN`-only is for platform provisioning only (D-11). |
+| Should this action be audited | If it moves money, changes config, or touches a student record: yes, with actor, reason, before/after. |
+| Rounding a compliance ceiling or threshold | Round down. A ceiling that rounds up lets breaches pass undetected (D-14). |
+| Where a new non-Student field lives | Its own table if it has an independent lifecycle (D-1, D-13); a `District` field if it is district-wide external config (D-14). |
+| Naming something on screen | Never after how it was built. Use `design-spec-06` §6.1; add to `lib/presentation-labels.ts` rather than inlining copy. |
+| A student pronoun | There isn't one. Gender is never stored. Use the child's name, or "your child". |
+| Why a meal is missing | Never assert a reason. "No lunch recorded" only (D-12). |
+| A new count of meals | Filter `overrideSeq = 0` and `reversedAt IS NULL`, reusing the existing shared query (D-10). |
+| A balance check before a debit | Reuse `lockAccountsForUpdate` + `assertCanDebit` (D-7). Never reimplement, never skip. |
+| Whether a meal can be denied for low balance | No. Meals are always served. Only à-la-carte denies (rule 11). |
+| An empty state or error message | Situation, then what to do, in one sentence. No error codes. `design-spec-06` §6.1 has the table. |
+| A demo fixture's exact value | Pick a plausible one, comment what it demonstrates, and report it in your summary. |
+
+**Still worth asking about:** a real conflict between two settled decisions, an external fact we cannot derive (a state agency's published figure, a district policy), or a requirement that would require changing something already settled.
+
 ## Non-negotiable, restated
 
 - Money is integer cents. The ledger is append-only — no UPDATE, no DELETE, ever. Corrections are new offsetting entries linked to the original.

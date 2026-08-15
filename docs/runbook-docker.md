@@ -27,6 +27,15 @@ docker compose exec app npm run logins
 Password for every account: `Woodbridge!Demo1`. Guardians sign in with no code;
 staff need the printed 6-digit authenticator code.
 
+The evaluator set has four logins:
+
+| Label | Email | Surface |
+|---|---|---|
+| Guardian | `guardian@woodbridge.demo` | Family portal |
+| Cashier | `cashier@woodbridge.demo` | Cafeteria POS |
+| Staff | `districtadmin@woodbridge.demo` | Admin console with district-wide staff access |
+| Super admin | `superadmin@woodbridge.demo` | Admin console with configuration access |
+
 For presentation environments, prefer stable authenticator entries instead of
 printing fresh secrets during the demo. Set these environment variables before
 seeding, enroll each secret once in the authenticator app, and then reuse those
@@ -34,7 +43,6 @@ entries for the AWS demo:
 
 ```bash
 SEED_TOTP_CASHIER=...
-SEED_TOTP_SCHOOL_STAFF=...
 SEED_TOTP_DISTRICT_ADMIN=...
 SEED_TOTP_SUPER_ADMIN=...
 ```

@@ -202,6 +202,17 @@ Rejected: locking it to `SUPER_ADMIN` only. That role is reserved for genuinely 
 
 Neither is rejected as a future capability — both should surface as their own scoped item when actually taken up, not as an unplanned add-on here.
 
+## D-21 · Demo scale stays at 200 students; claim figures say so on screen
+**Decided:** stage C · **Status:** settled
+
+The deeper meal-history seed keeps the existing 200 synthetic students rather than expanding to Woodbridge's real ~2,720 enrolment. Monthly totals will therefore read around 2,000 lunches, not the ~27,000 a district of that size actually claims.
+
+**Consequence, and the required mitigation:** a nutrition director reading 2,000 could reasonably conclude the system undercounts. The claim figures screen must state plainly that the figures come from a 200-student synthetic subset and are not district scale — the same honesty boundary as D-14's federal-default labelling and the existing `TRUST_COPY.claimFigures` statement. Proportional honesty is not enough on its own; the scale has to be named.
+
+Rejected: expanding the seed to full district enrolment. It multiplies reset time, fixtures, and UI datasets for a demo environment that gets reset often, and the mitigation above costs nothing by comparison. Revisit only if a full-scale performance demonstration is actually required.
+
+**Firmly rejected: a separate aggregate count table for claims.** Claim figures derive from `MealEvent` rows and nothing else. Every trust guarantee in the project depends on one source — reversed events never counting, overrides reported on their own line (D-10), the edit check reading the same query as the report (item 6). A second source silently breaks all of them and would be very hard to detect once introduced.
+
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 

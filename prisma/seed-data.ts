@@ -4,6 +4,12 @@ export const DEMO_STUDENT_COUNT = 200;
 export const WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS = 5482;
 // FNS federal default under 7 CFR 210.8. This is not a Delaware-specific value.
 export const WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS = 9380;
+export const MEAL_HISTORY_SEED = 20260816;
+export const MEAL_HISTORY_LOOKBACK_DAYS = 45;
+// One-indexed weekday positions within the rolling window. These are deliberate
+// synthetic closures so operating-day queries cannot accidentally assume that
+// every weekday was a school day.
+export const MEAL_HISTORY_CLOSURE_ORDINALS = [7, 17, 27] as const;
 
 export interface WoodbridgeSchoolSpec {
   name: string;
@@ -92,6 +98,108 @@ export const WOODBRIDGE_SEED_SCHOOLS = scaleEnrollmentCounts(
   WOODBRIDGE_SCHOOLS,
   DEMO_STUDENT_COUNT,
 );
+
+export const WOODBRIDGE_MEAL_PARTICIPATION: Record<
+  string,
+  { breakfastPercent: number; lunchPercent: number }
+> = {
+  "7760": { breakfastPercent: 55, lunchPercent: 85 },
+  "0779": { breakfastPercent: 50, lunchPercent: 82 },
+  "7750": { breakfastPercent: 35, lunchPercent: 70 },
+  "0780": { breakfastPercent: 25, lunchPercent: 55 },
+  "0781": { breakfastPercent: 50, lunchPercent: 80 },
+  "0782": { breakfastPercent: 50, lunchPercent: 80 },
+};
+
+export function dateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function addUtcDays(date: Date, days: number): Date {
+  return new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate() + days,
+  ));
+}
+
+export interface MealHistoryCalendar {
+  operatingDays: Date[];
+  closureDays: Date[];
+}
+
+/** Build the rolling synthetic school calendar from a district-safe date-only value. */
+export function buildMealHistoryCalendar(today: Date): MealHistoryCalendar {
+  const start = addUtcDays(today, -(MEAL_HISTORY_LOOKBACK_DAYS - 1));
+  const weekdays: Date[] = [];
+  for (let offset = 0; offset < MEAL_HISTORY_LOOKBACK_DAYS; offset += 1) {
+    const date = addUtcDays(start, offset);
+    const weekday = date.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) weekdays.push(date);
+  }
+
+  const closureIndexes = new Set(
+    MEAL_HISTORY_CLOSURE_ORDINALS.map((ordinal) => ordinal - 1),
+  );
+  return {
+    operatingDays: weekdays.filter((_, index) => !closureIndexes.has(index)),
+    closureDays: weekdays.filter((_, index) => closureIndexes.has(index)),
+  };
+}
+
+function hashSeedPart(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function scenarioSeed(...parts: string[]): number {
+  return (MEAL_HISTORY_SEED ^ hashSeedPart(parts.join("|"))) >>> 0;
+}
+
+/** Daily participation varies by a deterministic three percentage points. */
+export function dailyParticipationPercent(input: {
+  basePercent: number;
+  schoolCode: string;
+  serviceDate: Date;
+  mealType: "BREAKFAST" | "LUNCH";
+}): number {
+  const rng = mulberry32(scenarioSeed(
+    input.schoolCode,
+    dateKey(input.serviceDate),
+    input.mealType,
+  ));
+  const jitter = Math.floor(rng() * 7) - 3;
+  return Math.max(0, Math.min(100, input.basePercent + jitter));
+}
+
+/** Round a participation target normally, then cap ordinary days at the ceiling. */
+export function participationTarget(
+  activeEnrollment: number,
+  percent: number,
+  ceiling: number,
+): number {
+  return Math.min(ceiling, Math.round((activeEnrollment * percent) / 100));
+}
+
+/** Stable per-day student shuffle, independent of the student-generation RNG. */
+export function orderStudentsForMeal<T extends { studentNumber: string }>(
+  students: T[],
+  input: { schoolCode: string; serviceDate: Date; mealType: "BREAKFAST" | "LUNCH"; purpose?: string },
+): T[] {
+  return shuffled(
+    students,
+    scenarioSeed(
+      input.schoolCode,
+      dateKey(input.serviceDate),
+      input.mealType,
+      input.purpose ?? "ordinary",
+    ),
+  );
+}
 
 export interface ClassroomSeedSpec {
   schoolCode: "7760" | "0779";

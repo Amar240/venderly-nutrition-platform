@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_DISTRICT_TIME_ZONE, districtDateOnly } from "../server/time/district";
 import {
+  addUtcDays,
   allocatePricingTiers,
+  buildMealHistoryCalendar,
   buildStudentPricingRows,
   classroomTeacherForPosition,
+  dailyParticipationPercent,
+  dateKey,
   DEMO_STUDENT_COUNT,
+  MEAL_HISTORY_CLOSURE_ORDINALS,
+  MEAL_HISTORY_LOOKBACK_DAYS,
+  orderStudentsForMeal,
+  participationTarget,
   scaleEnrollmentCounts,
   totalRealEnrollment,
   WOODBRIDGE_SCHOOLS,
@@ -61,5 +70,57 @@ describe("real Woodbridge seed data", () => {
     expect(classroomTeacherForPosition("0779", "3", 2)).toBe("Priya Shah");
     expect(classroomTeacherForPosition("7760", "PK", 99)).toBe("Cameron Ellis");
     expect(classroomTeacherForPosition("7750", "7", 0)).toBeNull();
+  });
+
+  it("builds a rolling weekday-only history with three deterministic closures", () => {
+    const today = districtDateOnly(DEFAULT_DISTRICT_TIME_ZONE);
+    const first = buildMealHistoryCalendar(today);
+    const second = buildMealHistoryCalendar(today);
+
+    expect(first.operatingDays.map(dateKey)).toEqual(second.operatingDays.map(dateKey));
+    expect(first.closureDays.map(dateKey)).toEqual(second.closureDays.map(dateKey));
+    expect(first.closureDays).toHaveLength(MEAL_HISTORY_CLOSURE_ORDINALS.length);
+    expect(first.operatingDays.every((date) => ![0, 6].includes(date.getUTCDay()))).toBe(true);
+    expect(first.closureDays.every((date) => ![0, 6].includes(date.getUTCDay()))).toBe(true);
+    expect(first.operatingDays.every((date) => !first.closureDays.some((closure) => dateKey(closure) === dateKey(date)))).toBe(true);
+    expect(first.operatingDays[0]!.getTime()).toBeGreaterThanOrEqual(
+      addUtcDays(today, -(MEAL_HISTORY_LOOKBACK_DAYS - 1)).getTime(),
+    );
+    expect(first.operatingDays.at(-1)!.getTime()).toBeLessThanOrEqual(today.getTime());
+  });
+
+  it("varies participation deterministically within three percentage points", () => {
+    const today = districtDateOnly(DEFAULT_DISTRICT_TIME_ZONE);
+    const days = buildMealHistoryCalendar(today).operatingDays;
+    const values = days.map((serviceDate) => dailyParticipationPercent({
+      basePercent: 55,
+      schoolCode: "7760",
+      serviceDate,
+      mealType: "BREAKFAST",
+    }));
+
+    expect(values.every((value) => value >= 52 && value <= 58)).toBe(true);
+    expect(new Set(values).size).toBeGreaterThan(1);
+    expect(values).toEqual(days.map((serviceDate) => dailyParticipationPercent({
+      basePercent: 55,
+      schoolCode: "7760",
+      serviceDate,
+      mealType: "BREAKFAST",
+    })));
+  });
+
+  it("selects students repeatably and caps ordinary participation at the ceiling", () => {
+    const students = Array.from({ length: 12 }, (_, index) => ({
+      studentNumber: String(100001 + index),
+    }));
+    const serviceDate = districtDateOnly(DEFAULT_DISTRICT_TIME_ZONE);
+    const input = { schoolCode: "0779", serviceDate, mealType: "LUNCH" as const };
+
+    expect(orderStudentsForMeal(students, input)).toEqual(orderStudentsForMeal(students, input));
+    expect(orderStudentsForMeal(students, input).map((row) => row.studentNumber).sort()).toEqual(
+      students.map((row) => row.studentNumber).sort(),
+    );
+    expect(participationTarget(53, 97, 49)).toBe(49);
+    expect(participationTarget(53, 55, 49)).toBe(29);
   });
 });

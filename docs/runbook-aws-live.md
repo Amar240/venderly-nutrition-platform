@@ -52,8 +52,7 @@ Suggested set:
 | Login | Role | For |
 |---|---|---|
 | `firstname.lastname@venderly.com` | Super admin | The technology director or whoever evaluates configuration |
-| `firstname.lastname@venderly.com` | District admin | The nutrition director |
-| `observer@venderly.com` | School staff (read-only) | Anyone who just wants to look around |
+| `firstname.lastname@venderly.com` | Staff (`DISTRICT_ADMIN`) | The nutrition director or admin-console evaluator |
 | `cashier.demo@venderly.com` | Cashier | Seeing the register view |
 | `parent.demo@venderly.com` | Guardian | Seeing the family view |
 

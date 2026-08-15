@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { afterAll, describe, expect, it } from "vitest";
-import { dateOnlyUtc, districtToday, isAfterServiceEnd, minutesAfterMidnightInZone } from "./district";
+import { dateOnlyUtc, districtDateOnly, districtToday, isAfterServiceEnd, minutesAfterMidnightInZone } from "./district";
 
 const prisma = new PrismaClient();
 let dbUp = false;
@@ -24,6 +24,7 @@ describe("district time helpers", () => {
   it("derives date and minutes in an IANA time zone, independent of host TZ", () => {
     const now = new Date("2026-08-15T03:30:00.000Z");
     expect(minutesAfterMidnightInZone("America/New_York", now)).toBe(23 * 60 + 30);
+    expect(districtDateOnly("America/New_York", now)).toEqual(dateOnlyUtc(2026, 8, 14));
     expect(dateOnlyUtc(2026, 8, 14).toISOString().slice(0, 10)).toBe("2026-08-14");
   });
 });

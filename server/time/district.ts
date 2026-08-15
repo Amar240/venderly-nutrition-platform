@@ -31,6 +31,15 @@ export function dateOnlyUtc(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+/** Resolve a date-only value in a named district time zone, never host-local time. */
+export function districtDateOnly(
+  timeZone: string,
+  now: Date = new Date(),
+): Date {
+  const parts = datePartsInZone(timeZone, now);
+  return dateOnlyUtc(parts.year, parts.month, parts.day);
+}
+
 export function minutesAfterMidnightInZone(timeZone: string, now: Date): number {
   const parts = datePartsInZone(timeZone, now);
   return parts.hour * 60 + parts.minute;
@@ -45,8 +54,7 @@ export async function districtToday(
     select: { timeZone: true },
   });
   const zone = district?.timeZone ?? DEFAULT_DISTRICT_TIME_ZONE;
-  const parts = datePartsInZone(zone, now);
-  return dateOnlyUtc(parts.year, parts.month, parts.day);
+  return districtDateOnly(zone, now);
 }
 
 export async function isAfterServiceEnd(
@@ -71,4 +79,3 @@ export async function isAfterServiceEnd(
   const zone = district?.timeZone ?? DEFAULT_DISTRICT_TIME_ZONE;
   return minutesAfterMidnightInZone(zone, now) >= end;
 }
-
