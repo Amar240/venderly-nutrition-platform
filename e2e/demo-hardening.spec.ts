@@ -62,6 +62,17 @@ async function expectTargetsAtLeast(page: Page, selector: string, min: number) {
   expect(small).toEqual([]);
 }
 
+function dateOnlyInZone(timeZone: string, now = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  return new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
+}
+
 test("guardian phone flow has banner, skip link, accessible states, deposit, and sibling transfer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, "guardian@woodbridge.demo", /\/guardian/);
@@ -85,16 +96,16 @@ test("guardian phone flow has banner, skip link, accessible states, deposit, and
   await page.getByRole("link", { name: "Add money", exact: true }).click();
   await page.waitForURL(/\/guardian\/deposit/);
   await page.getByLabel("Marcus Okafor", { exact: true }).fill("10.00");
-  await page.getByRole("button", { name: "Continue to checkout" }).click();
+  await page.getByRole("button", { name: "Add $10.00" }).click();
   await expect(page.getByRole("button", { name: /Pay \$10\.00/ })).toBeVisible();
 
   await page.goto("/guardian/transfer");
   await page.getByLabel("From").selectOption({ label: "Ella Whitfield" });
   await page.getByLabel("To").selectOption({ label: "Marcus Okafor" });
   await page.getByLabel("Amount").fill("5.00");
-  await page.getByRole("button", { name: "Review transfer" }).click();
-  await page.getByRole("button", { name: "Confirm transfer" }).click();
-  await expect(page.getByText("Transfer complete.")).toBeVisible();
+  await page.getByRole("button", { name: "Review $5.00" }).click();
+  await page.getByRole("button", { name: "Move money" }).click();
+  await expect(page.getByText("Money moved.")).toBeVisible();
 });
 
 test("POS tablet flow is keyboard operable, announces result, and keeps 48px targets", async ({ page }) => {
@@ -112,7 +123,7 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
   await expect(undo).toBeVisible();
   await undo.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toContainText("Lunch entry undone for Nora Bell.");
+  await expect(page.getByRole("status")).toContainText("Lunch undone for Nora Bell.");
   await expect(undo).toHaveCount(0);
   await expect(page.getByLabel("Student number")).toBeFocused({ timeout: 4_000 });
 
@@ -131,9 +142,74 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
   await expect(page.getByRole("button", { name: "Undo last student" })).toBeVisible();
 });
 
+test("POS roster mode records and undoes one teacher class as an atomic batch", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await signIn(page, "cashier@woodbridge.demo", /\/pos/, await staffTotp("CASHIER"));
+  await page.getByRole("link", { name: "Lunch" }).click();
+  await page.getByRole("link", { name: "Choose a class" }).click();
+  await page.getByRole("link", { name: /Priya Shah/ }).click();
+
+  await expect(page.getByText("Ella W.")).toBeVisible();
+  await expect(page.getByText("already recorded", { exact: true })).toBeVisible();
+  const mia = page.getByRole("button", { name: "Mia O." });
+  await mia.focus();
+  await page.keyboard.press("Space");
+  await expect(mia).toHaveAttribute("aria-pressed", "true");
+  await expect(mia.locator("svg")).toBeVisible();
+  await expect(page.getByText("1 selected · 8 not eating · 1 already done")).toBeVisible();
+
+  await page.getByRole("button", { name: "Record 1 lunch." }).click();
+  await expect(page.locator(".sr-only[aria-live='polite']")).toHaveText("1 lunch recorded.");
+  const undo = page.getByRole("button", { name: "Undo 1 lunch" });
+  await expect(undo).toBeVisible();
+  await expect(undo).toBeFocused();
+  await undo.press("Enter");
+  await expect(page.locator(".sr-only[aria-live='polite']")).toHaveText("1 lunch undone.");
+  await expect(page.getByRole("heading", { name: "Priya Shah" })).toBeFocused();
+
+  await expectNoHorizontalOverflow(page);
+  await expectTargetsAtLeast(page, "a,button,input,select", 48);
+  await expectAxeClean(page);
+});
+
 test("admin laptop flow covers search, correction, export error surface, and import", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  const scopeNorth = await prisma.school.findFirstOrThrow({
+    where: { code: "0781" },
+    select: {
+      id: true,
+      district: { select: { timeZone: true } },
+      students: {
+        where: { enrollmentStatus: "ACTIVE" },
+        select: { id: true },
+        orderBy: { studentNumber: "asc" },
+      },
+    },
+  });
+  await prisma.mealEvent.createMany({
+    data: scopeNorth.students.map((student) => ({
+      studentId: student.id,
+      schoolId: scopeNorth.id,
+      serviceDate: dateOnlyInZone(scopeNorth.district.timeZone),
+      mealType: "BREAKFAST" as const,
+      priceCents: 0,
+    })),
+  });
+
   await signIn(page, "superadmin@woodbridge.demo", /\/admin/, await staffTotp("SUPER_ADMIN"));
+  await expect(page.getByRole("heading", { name: "Breakfast counts need attention" })).toBeVisible();
+  await expect(page.getByText("Breakfast counts look high at S.C.O.P.E. North. Today recorded 2 breakfasts. The most you'd expect for today is 1.")).toBeVisible();
+  await page.getByRole("link", { name: "Check today's figures" }).click();
+  await expect(page.getByRole("heading", { name: "Check meal-count ceilings" })).toBeVisible();
+  await expect(page.getByText("Ceilings use the 93.8% FNS federal default and are rounded down to a whole meal.")).toBeVisible();
+  await expect(page.getByText("These are your figures to check and submit. This system doesn't file claims.")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Maximum expected" })).toBeVisible();
+  await expect(page.getByText("Needs attention", { exact: true })).toBeVisible();
+  await expect(page.getByText(/attendance factor/i)).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+  await expectAxeClean(page);
+  await expectTargetsAtLeast(page, "a,button,input,select", 44);
+
   await page.goto("/admin/students?q=100003");
   await page.getByRole("link", { name: "100003" }).click();
   await expect(page.getByText(/Undone by Casey Nguyen at/)).toBeVisible();
@@ -141,23 +217,31 @@ test("admin laptop flow covers search, correction, export error surface, and imp
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
   await page.getByRole("link", { name: "100001" }).click();
-  await expect(page.getByText("Incorrect synthetic cash deposit")).toBeVisible();
+  await expect(page.getByText("Incorrect synthetic cash payment")).toBeVisible();
   await page.getByLabel("Amount").first().fill("1.00");
   await page.getByLabel("Reason").first().fill("Verified cash deposit correction");
-  await page.getByRole("button", { name: "Apply adjustment" }).click();
-  await expect(page.getByText("Done.")).toBeVisible();
+  await page.getByRole("button", { name: "Add $1.00" }).click();
+  await expect(page.getByText("Recorded.")).toBeVisible();
 
   await page.goto("/admin/reports/export");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download CSV" }).click();
+  await page.getByRole("button", { name: "Download money history" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/transactions-/);
+  expect(download.suggestedFilename()).toMatch(/money-history-/);
 
   await page.goto("/admin/import");
   await expectAxeClean(page);
-  await page.getByLabel("CSV file").setInputFiles(path.resolve("fixtures/clean.csv"));
-  await page.getByRole("button", { name: "Validate & import" }).click();
-  await expect(page.getByText("Import complete")).toBeVisible();
-  await expect(page.getByText(/ignored by policy/)).toBeVisible();
+  await page.getByLabel("Student list file").setInputFiles(path.resolve("fixtures/clean.csv"));
+  await page.getByRole("button", { name: "Upload student list" }).click();
+  await expect(page.getByText("Student list uploaded")).toBeVisible();
+  await expect(page.getByText("3 columns were ignored: date of birth, race, and gender. This system doesn't store them.")).toBeVisible();
   await expectTargetsAtLeast(page, "a,button,input,select", 44);
+
+  await page.goto("/admin/classes");
+  await page.getByLabel("School").selectOption({ label: "Phillis Wheatley Elementary" });
+  await page.getByRole("button", { name: "Show classes" }).click();
+  await expect(page.getByRole("heading", { name: "Classes at Phillis Wheatley Elementary" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Priya Shah" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expectAxeClean(page);
 });

@@ -24,16 +24,16 @@ interface PosResultProps {
 
 const COPY: Record<PosStatus, { title: string; hint?: string }> = {
   recorded: { title: "Meal recorded" },
-  duplicate: { title: "Already had lunch", hint: "This meal is already recorded for today." },
+  duplicate: { title: "Already had lunch", hint: "Check the student number." },
   not_active_at_school: { title: "Not at this school", hint: "Check the student number." },
-  insufficient_balance: { title: "Not enough balance", hint: "This purchase can’t be completed." },
-  undone: { title: "Meal entry undone" },
+  insufficient_balance: { title: "Not enough money", hint: "This purchase can’t be completed." },
+  undone: { title: "Meal undone" },
   undo_unavailable: {
     title: "Undo no longer available",
-    hint: "Ask an administrator to make a correction.",
+    hint: "Ask an administrator to fix the mistake.",
   },
-  rate_limited: { title: "Too many attempts", hint: "Please wait a moment and try again." },
-  error: { title: "Something went wrong", hint: "Please try again." },
+  rate_limited: { title: "Too many tries", hint: "Wait 10 minutes, or ask an administrator to help." },
+  error: { title: "The meal could not be recorded", hint: "Check the student number and try again." },
 };
 
 export function PosResult({ status, studentName, detail, message }: PosResultProps) {

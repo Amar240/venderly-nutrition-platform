@@ -2,6 +2,8 @@ import type { PriceTier, PricingSource } from "@prisma/client";
 
 export const DEMO_STUDENT_COUNT = 200;
 export const WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS = 5482;
+// FNS federal default under 7 CFR 210.8. This is not a Delaware-specific value.
+export const WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS = 9380;
 
 export interface WoodbridgeSchoolSpec {
   name: string;
@@ -90,6 +92,37 @@ export const WOODBRIDGE_SEED_SCHOOLS = scaleEnrollmentCounts(
   WOODBRIDGE_SCHOOLS,
   DEMO_STUDENT_COUNT,
 );
+
+export interface ClassroomSeedSpec {
+  schoolCode: "7760" | "0779";
+  teacherName: string;
+  grade: string;
+}
+
+export const WOODBRIDGE_CLASSROOMS: ClassroomSeedSpec[] = [
+  { schoolCode: "7760", teacherName: "Cameron Ellis", grade: "PK" },
+  { schoolCode: "7760", teacherName: "Jordan Reyes", grade: "K" },
+  { schoolCode: "7760", teacherName: "Morgan Brooks", grade: "1" },
+  { schoolCode: "7760", teacherName: "Taylor Bennett", grade: "2" },
+  { schoolCode: "0779", teacherName: "Priya Shah", grade: "3" },
+  { schoolCode: "0779", teacherName: "Daniel Carter", grade: "3" },
+  { schoolCode: "0779", teacherName: "Lena Morales", grade: "4" },
+  { schoolCode: "0779", teacherName: "Marcus Reed", grade: "4" },
+  { schoolCode: "0779", teacherName: "Aisha Turner", grade: "5" },
+  { schoolCode: "0779", teacherName: "Henry Kim", grade: "5" },
+];
+
+export function classroomTeacherForPosition(
+  schoolCode: string,
+  grade: string,
+  gradePosition: number,
+): string | null {
+  const choices = WOODBRIDGE_CLASSROOMS.filter(
+    (classroom) => classroom.schoolCode === schoolCode && classroom.grade === grade,
+  );
+  if (choices.length === 0) return null;
+  return choices[gradePosition % choices.length]!.teacherName;
+}
 
 export function mulberry32(seed: number) {
   let a = seed;

@@ -71,13 +71,34 @@ export async function runImport(
   // Plan (every row is valid here).
   const existing = await prisma.student.findMany({
     where: { districtId },
-    select: { id: true, studentNumber: true, firstName: true, lastName: true, middleName: true, grade: true, schoolId: true, enrollmentStatus: true },
+    select: {
+      id: true,
+      studentNumber: true,
+      firstName: true,
+      lastName: true,
+      middleName: true,
+      grade: true,
+      schoolId: true,
+      classroomId: true,
+      classroom: { select: { teacherName: true } },
+      enrollmentStatus: true,
+    },
   });
   const existingByNumber = new Map(existing.map((s) => [s.studentNumber, s]));
   const fileNumbers = new Set(parsed.rows.map((r) => r.studentNumber));
 
   const toCreate: { studentNumber: string; firstName: string; lastName: string; middleName: string; grade: string; schoolId: string }[] = [];
-  const toUpdate: { id: string; firstName: string; lastName: string; middleName: string; grade: string; schoolId: string }[] = [];
+  const toUpdate: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    middleName: string;
+    grade: string;
+    schoolId: string;
+    previousSchoolId: string;
+    classroomId: string | null;
+    classroomTeacherName: string | null;
+  }[] = [];
   let skipped = 0;
   for (const row of parsed.rows) {
     const schoolId = codeToSchoolId.get(row.schoolCode)!;
@@ -92,7 +113,19 @@ export async function runImport(
         ex.grade !== row.grade ||
         ex.schoolId !== schoolId ||
         ex.enrollmentStatus !== "ACTIVE";
-      if (changed) toUpdate.push({ id: ex.id, firstName: row.firstName, lastName: row.lastName, middleName: row.middleName, grade: row.grade, schoolId });
+      if (changed) {
+        toUpdate.push({
+          id: ex.id,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          middleName: row.middleName,
+          grade: row.grade,
+          schoolId,
+          previousSchoolId: ex.schoolId,
+          classroomId: ex.classroomId,
+          classroomTeacherName: ex.classroom?.teacherName ?? null,
+        });
+      }
       else skipped++;
     }
   }
@@ -121,6 +154,15 @@ export async function runImport(
     : undefined;
 
   const run = await prisma.$transaction(async (tx) => {
+    // Create the audit record first so school-move evidence can point to it;
+    // the surrounding transaction still makes the run and roster all-or-nothing.
+    const committedRun = await tx.importRun.create({
+      data: {
+        districtId, source: input.filename, operator, checksum, status: "committed",
+        createdCount: toCreate.length, updatedCount: toUpdate.length, inactiveCount: deactivateCount, skippedCount: skipped, failedCount: 0,
+        confirmationJson,
+      },
+    });
     for (const c of toCreate) {
       await tx.student.create({
         data: {
@@ -132,22 +174,45 @@ export async function runImport(
       });
     }
     for (const u of toUpdate) {
+      const schoolChanged = u.previousSchoolId !== u.schoolId;
       await tx.student.update({
         where: { id: u.id },
-        data: { firstName: u.firstName, lastName: u.lastName, middleName: u.middleName || null, grade: u.grade, schoolId: u.schoolId, enrollmentStatus: "ACTIVE" },
+        data: {
+          firstName: u.firstName,
+          lastName: u.lastName,
+          middleName: u.middleName || null,
+          grade: u.grade,
+          schoolId: u.schoolId,
+          ...(schoolChanged && u.classroomId ? { classroomId: null } : {}),
+          enrollmentStatus: "ACTIVE",
+        },
       });
+      if (schoolChanged && u.classroomId) {
+        await tx.auditLog.create({
+          data: {
+            actorType: "USER",
+            actorId: session.userId,
+            action: "STUDENT_CLASSROOM_CLEARED_FOR_SCHOOL_CHANGE",
+            subjectType: "student",
+            subjectId: u.id,
+            districtId,
+            schoolId: u.schoolId,
+            reason: "School changed during student-list upload.",
+            beforeJson: {
+              classroomId: u.classroomId,
+              teacherName: u.classroomTeacherName,
+              schoolId: u.previousSchoolId,
+              importRunId: committedRun.id,
+            },
+            afterJson: { classroomId: null, schoolId: u.schoolId, importRunId: committedRun.id },
+          },
+        });
+      }
     }
     if (toDeactivate.length > 0) {
       await tx.student.updateMany({ where: { id: { in: toDeactivate.map((s) => s.id) } }, data: { enrollmentStatus: "INACTIVE" } });
     }
-
-    return tx.importRun.create({
-      data: {
-        districtId, source: input.filename, operator, checksum, status: "committed",
-        createdCount: toCreate.length, updatedCount: toUpdate.length, inactiveCount: deactivateCount, skippedCount: skipped, failedCount: 0,
-        confirmationJson,
-      },
-    });
+    return committedRun;
   });
 
   return {

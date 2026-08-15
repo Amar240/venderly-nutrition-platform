@@ -3,6 +3,8 @@ import { reportScope } from "./scope";
 import { SERVED_ONLY, OVERRIDES_ONLY } from "@/server/meals/mealCounts";
 import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
 import { monthRange } from "./deposits";
+import { editCheckReport, type EditCheckRow } from "./editCheck";
+import { districtToday } from "@/server/time/district";
 import type { AppSession } from "@/server/auth/types";
 
 /**
@@ -28,14 +30,18 @@ export interface DistrictDashboard {
   periodLabel: string;
   schools: DashboardSchoolRow[];
   totals: Omit<DashboardSchoolRow, "schoolId" | "schoolName">;
+  editCheckExceptions: EditCheckRow[];
+  editCheckUnavailableMessage: string | null;
 }
 
 export async function districtDashboard(
   session: AppSession | null | undefined,
+  now: Date = new Date(),
 ): Promise<DistrictDashboard> {
   const scope = await reportScope(session);
-  const now = new Date();
   const { from, to } = monthRange(now.getUTCFullYear(), now.getUTCMonth() + 1);
+  const today = await districtToday(scope.districtId, now);
+  const editCheck = await editCheckReport(session, { from: today, to: today });
 
   // Derived balances for every in-scope account, in two queries.
   const accounts = await prisma.account.findMany({
@@ -103,5 +109,15 @@ export async function districtDashboard(
   );
 
   const periodLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  return { periodLabel, schools: rows, totals };
+  return {
+    periodLabel,
+    schools: rows,
+    totals,
+    editCheckExceptions:
+      editCheck.status === "available"
+        ? editCheck.rows.filter((row) => row.needsAttention)
+        : [],
+    editCheckUnavailableMessage:
+      editCheck.status === "unavailable" ? editCheck.message : null,
+  };
 }

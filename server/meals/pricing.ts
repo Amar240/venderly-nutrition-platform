@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/client";
 import { writeAudit } from "@/server/audit/log";
 import type { ResolvedPricingConfig } from "@/server/pricing/config";
 import {
+  Prisma,
   type MealType,
   type PriceTier,
   type PricingSource,
@@ -49,8 +50,11 @@ export function computeMealPriceCents(
  * Resolve a student's price tier. Defaults to FREE when no StudentPricing row
  * exists. Do not call this from guardian/POS-facing code — pricing logic only.
  */
-export async function getStudentTier(studentId: string): Promise<PriceTier> {
-  const pricing = await prisma.studentPricing.findUnique({
+export async function getStudentTier(
+  studentId: string,
+  db: Pick<Prisma.TransactionClient, "studentPricing"> = prisma,
+): Promise<PriceTier> {
+  const pricing = await db.studentPricing.findUnique({
     where: { studentId },
     select: { tier: true },
   });

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   allocatePricingTiers,
   buildStudentPricingRows,
+  classroomTeacherForPosition,
   DEMO_STUDENT_COUNT,
   scaleEnrollmentCounts,
   totalRealEnrollment,
   WOODBRIDGE_SCHOOLS,
+  WOODBRIDGE_CLASSROOMS,
+  WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS,
 } from "./seed-data";
 
 function counts<T extends string>(items: T[]): Record<T, number> {
@@ -19,6 +22,10 @@ function counts<T extends string>(items: T[]): Record<T, number> {
 }
 
 describe("real Woodbridge seed data", () => {
+  it("uses the 93.8% FNS federal default for edit-check ceilings", () => {
+    expect(WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS).toBe(9380);
+  });
+
   it("scales official school enrollment to the 200-student demo roster", () => {
     expect(totalRealEnrollment()).toBe(2720);
 
@@ -44,5 +51,15 @@ describe("real Woodbridge seed data", () => {
     expect(new Set(rows.map((row) => row.studentId)).size).toBe(DEMO_STUDENT_COUNT);
     expect(rows.every((row) => row.source === "DISTRICT_EXPORT")).toBe(true);
     expect(counts(rows.map((row) => row.tier))).toEqual({ FREE: 130, REDUCED: 16, PAID: 54 });
+  });
+
+  it("defines deterministic teacher-named classrooms only for the two roster schools", () => {
+    expect(WOODBRIDGE_CLASSROOMS).toHaveLength(10);
+    expect(new Set(WOODBRIDGE_CLASSROOMS.map((room) => room.schoolCode))).toEqual(new Set(["7760", "0779"]));
+    expect(classroomTeacherForPosition("0779", "3", 0)).toBe("Priya Shah");
+    expect(classroomTeacherForPosition("0779", "3", 1)).toBe("Daniel Carter");
+    expect(classroomTeacherForPosition("0779", "3", 2)).toBe("Priya Shah");
+    expect(classroomTeacherForPosition("7760", "PK", 99)).toBe("Cameron Ellis");
+    expect(classroomTeacherForPosition("7750", "7", 0)).toBeNull();
   });
 });

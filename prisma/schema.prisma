@@ -104,6 +104,9 @@ model District {
   id                             String   @id @default(cuid())
   name                           String
   identifiedStudentPercentageBps Int?
+  // External compliance input. Woodbridge's seed uses the 93.8% FNS federal
+  // default because no Delaware-specific published percentage was found (D-14).
+  stateAttendanceFactorBps       Int?
   timeZone                       String   @default("America/New_York")
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
@@ -134,16 +137,36 @@ model School {
   pricingConfigs PricingConfig[]
   notifications  Notification[]
   mealEvents     MealEvent[]
+  classrooms     Classroom[]
 
   @@unique([districtId, code])
 }
 
-// Data minimization (rule 9): ONLY these fields. Do not add race, ethnicity,
-// gender, or birthdate — those columns must never exist.
+// Teacher-named operational group for roster-mode meal recording (D-13).
+// Classroom membership is maintained separately from the student-list upload.
+model Classroom {
+  id          String  @id @default(cuid())
+  teacherName String
+  schoolId    String
+  grade       String?
+  active      Boolean @default(true)
+
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  students Student[] @relation("StudentClassroom")
+
+  // Supports Student's composite FK, which makes a cross-school classroom
+  // assignment impossible even if a future caller skips the domain guard.
+  @@unique([id, schoolId])
+  @@index([schoolId, active])
+}
+
+// Data minimization (rule 9): minimal identity/enrollment fields plus D-13's
+// operational classroom FK. Race, ethnicity, gender, and birthdate must never exist.
 model Student {
   id               String           @id @default(cuid())
   districtId       String
   schoolId         String
+  classroomId      String?
   studentNumber    String
   firstName        String
   lastName         String
@@ -155,6 +178,7 @@ model Student {
 
   district           District            @relation(fields: [districtId], references: [id])
   school             School              @relation(fields: [schoolId], references: [id])
+  classroom          Classroom?          @relation("StudentClassroom", fields: [classroomId, schoolId], references: [id, schoolId], onDelete: Restrict, onUpdate: Cascade)
   account            Account?
   pricing            StudentPricing? // pricing INPUT only — not part of the rule-9 field list
   guardianLinks      GuardianStudent[]
@@ -164,6 +188,7 @@ model Student {
 
   @@unique([districtId, studentNumber])
   @@index([schoolId])
+  @@index([classroomId])
 }
 
 // Pricing INPUT for a student, kept OFF the Student record so rule 9's field

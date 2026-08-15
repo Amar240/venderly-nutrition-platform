@@ -21,9 +21,11 @@ try {
 const districtIds: string[] = [];
 afterAll(async () => {
   for (const id of districtIds) {
+    await prisma.auditLog.deleteMany({ where: { districtId: id } });
     await prisma.importRun.deleteMany({ where: { districtId: id } });
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
+    await prisma.classroom.deleteMany({ where: { school: { districtId: id } } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
   }
@@ -118,6 +120,10 @@ describe.skipIf(!dbUp)("upsert + idempotency", () => {
 
   it("creates new, updates changed, and moves a student's school", async () => {
     const f = await fresh();
+    const rmsSchool = await prisma.school.findFirstOrThrow({ where: { districtId: f.districtId, code: f.rms } });
+    const classroom = await prisma.classroom.create({ data: { schoolId: rmsSchool.id, teacherName: "Prior Teacher", grade: "6" } });
+    const beforeMove = await prisma.student.findFirstOrThrow({ where: { districtId: f.districtId, studentNumber: "1009" } });
+    await prisma.student.update({ where: { id: beforeMove.id }, data: { classroomId: classroom.id } });
     const rows = f.rows.map((r) => ({ ...r }));
     rows[0]!.grade = "4"; // update
     rows[8]!.code = f.wes; // was RMS → move to WES (schoolId change)
@@ -130,6 +136,14 @@ describe.skipIf(!dbUp)("upsert + idempotency", () => {
     }
     const moved = await prisma.student.findFirstOrThrow({ where: { districtId: f.districtId, studentNumber: "1009" }, include: { school: true } });
     expect(moved.school.code).toBe("WES");
+    expect(moved.classroomId).toBeNull();
+    if (result.status !== "committed") throw new Error("expected committed upload");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { districtId: f.districtId, subjectId: moved.id, action: "STUDENT_CLASSROOM_CLEARED_FOR_SCHOOL_CHANGE" },
+    });
+    expect(audit.reason).toBe("School changed during student-list upload.");
+    expect(audit.beforeJson).toMatchObject({ classroomId: classroom.id, teacherName: "Prior Teacher", importRunId: result.importRunId });
+    expect(audit.afterJson).toMatchObject({ classroomId: null, importRunId: result.importRunId });
   });
 });
 
@@ -227,6 +241,32 @@ describe.skipIf(!dbUp)("validation gate — strict all-or-nothing", () => {
     } finally {
       await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS import_run_rollback_test_trigger ON "ImportRun";');
       await prisma.$executeRawUnsafe("DROP FUNCTION IF EXISTS fail_import_run_for_rollback_test();");
+    }
+  });
+
+  it("rolls back a school move and classroom clearing if its audit insert fails", async () => {
+    const f = await fresh();
+    const rmsSchool = await prisma.school.findFirstOrThrow({ where: { districtId: f.districtId, code: f.rms } });
+    const classroom = await prisma.classroom.create({ data: { schoolId: rmsSchool.id, teacherName: "Audit Move Teacher" } });
+    const moving = await prisma.student.findFirstOrThrow({ where: { districtId: f.districtId, studentNumber: "1009" } });
+    await prisma.student.update({ where: { id: moving.id }, data: { classroomId: classroom.id } });
+    const rows = f.rows.map((row) => ({ ...row }));
+    rows[8]!.code = f.wes;
+    const suffix = crypto.randomUUID().replaceAll("-", "");
+    const fn = `reject_import_class_audit_${suffix}`;
+    const trigger = `reject_import_class_audit_trigger_${suffix}`;
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION "${fn}"() RETURNS trigger AS $$ BEGIN IF NEW."districtId" = '${f.districtId}' AND NEW.action = 'STUDENT_CLASSROOM_CLEARED_FOR_SCHOOL_CHANGE' THEN RAISE EXCEPTION 'forced import classroom audit failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER "${trigger}" BEFORE INSERT ON "AuditLog" FOR EACH ROW EXECUTE FUNCTION "${fn}"()`);
+    try {
+      await expect(runImport(f.superAdmin, { filename: "school-move-audit.csv", content: csv(rows) })).rejects.toThrow();
+      const after = await prisma.student.findUniqueOrThrow({ where: { id: moving.id } });
+      expect(after.schoolId).toBe(rmsSchool.id);
+      expect(after.classroomId).toBe(classroom.id);
+      expect(await prisma.importRun.count({ where: { districtId: f.districtId } })).toBe(0);
+      expect(await prisma.auditLog.count({ where: { districtId: f.districtId } })).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS "${trigger}" ON "AuditLog"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${fn}"()`);
     }
   });
 });

@@ -23,9 +23,12 @@ import { recordAdjustment } from "../server/ledger/ledger";
 import {
   buildRemainingSchoolSlots,
   buildStudentPricingRows,
+  classroomTeacherForPosition,
   DEMO_STUDENT_COUNT,
   mulberry32,
+  WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS,
   WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
+  WOODBRIDGE_CLASSROOMS,
   WOODBRIDGE_SEED_SCHOOLS,
 } from "./seed-data";
 
@@ -101,6 +104,7 @@ async function reset() {
   await prisma.userSchool.deleteMany();
   await prisma.user.deleteMany();
   await prisma.student.deleteMany();
+  await prisma.classroom.deleteMany();
   await prisma.guardian.deleteMany();
   await prisma.school.deleteMany();
   await prisma.district.deleteMany();
@@ -197,6 +201,8 @@ async function main() {
     data: {
       name: "Woodbridge School District",
       identifiedStudentPercentageBps: WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
+      // FNS federal default; no Delaware-specific published percentage was found.
+      stateAttendanceFactorBps: WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS,
       timeZone: WOODBRIDGE_TIME_ZONE,
     },
   });
@@ -247,6 +253,20 @@ async function main() {
   const schoolsByCode = new Map(schools.map((school) => [school.code, school]));
   const wheatley = schoolsByCode.get("0779")!;
   const middle = schoolsByCode.get("7750")!;
+
+  const classroomsByTeacher = new Map<string, { id: string }>();
+  for (const spec of WOODBRIDGE_CLASSROOMS) {
+    const school = schoolsByCode.get(spec.schoolCode)!;
+    const classroom = await prisma.classroom.create({
+      data: {
+        schoolId: school.id,
+        teacherName: spec.teacherName,
+        grade: spec.grade,
+      },
+      select: { id: true },
+    });
+    classroomsByTeacher.set(`${spec.schoolCode}|${spec.teacherName}`, classroom);
+  }
 
   const guardianPasswordHash = await hash(DEMO_PASSWORD);
 
@@ -415,6 +435,30 @@ async function main() {
     throw new Error(`School slot allocation left ${remainingSchoolSlots.length} unused slots`);
   }
 
+  // Deterministic teacher-named rosters for the two schools that use class
+  // entry. Students are ordered by number and balanced within each grade.
+  for (const schoolCode of ["7760", "0779"] as const) {
+    const school = schoolsByCode.get(schoolCode)!;
+    const students = await prisma.student.findMany({
+      where: { schoolId: school.id, enrollmentStatus: "ACTIVE" },
+      select: { id: true, grade: true },
+      orderBy: { studentNumber: "asc" },
+    });
+    const gradePositions = new Map<string, number>();
+    for (const student of students) {
+      const position = gradePositions.get(student.grade) ?? 0;
+      const teacherName = classroomTeacherForPosition(schoolCode, student.grade, position);
+      if (!teacherName) throw new Error(`No classroom seed for ${schoolCode} grade ${student.grade}`);
+      const classroom = classroomsByTeacher.get(`${schoolCode}|${teacherName}`);
+      if (!classroom) throw new Error(`Missing seeded classroom for ${teacherName}`);
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { classroomId: classroom.id },
+      });
+      gradePositions.set(student.grade, position + 1);
+    }
+  }
+
   // --- Staff users, one per role, with pre-enrolled TOTP --------------------
   interface StaffSpec {
     email: string;
@@ -536,6 +580,7 @@ async function main() {
   console.log("\n================ SEED COMPLETE ================");
   console.log(`District: ${district.name}`);
   console.log(`Schools: ${schools.length}  Students: ${totalStudents}  Guardians: ${totalGuardians}`);
+  console.log(`Classrooms: ${WOODBRIDGE_CLASSROOMS.length} across ECEC and Phillis Wheatley`);
   console.log(`\nShared demo password (all accounts): ${DEMO_PASSWORD}`);
   console.log("\nGuardian sign-in (single factor, no code needed):");
   console.log("  guardian@woodbridge.demo  — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");

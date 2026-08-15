@@ -25,3 +25,4 @@ cdk.out/
 uploads/
 tmp/
 tsconfig.tsbuildinfo
+test-results/

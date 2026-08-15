@@ -56,6 +56,13 @@ export function auditActionLabel(action: string): string {
     CONFIG_USER_UPDATE: "Changed staff access",
     CONFIG_USER_DISABLED: "Turned off staff access",
     CONFIG_USER_ENABLED: "Turned on staff access",
+    CLASSROOM_CREATED: "Created a class",
+    CLASSROOM_DEACTIVATED: "Stopped using a class",
+    CLASSROOM_REACTIVATED: "Started using a class again",
+    STUDENT_CLASSROOM_ASSIGNED: "Assigned a student to a class",
+    STUDENT_CLASSROOM_REASSIGNED: "Moved a student to another class",
+    STUDENT_CLASSROOM_UNASSIGNED: "Removed a student from a class",
+    STUDENT_CLASSROOM_CLEARED_FOR_SCHOOL_CHANGE: "Cleared a class after a school change",
     STUDENT_VIEW: "Viewed a student",
   };
   return labels[action] ?? "Staff activity";
@@ -82,6 +89,7 @@ export function auditSubjectLabel(subjectType: string | null | undefined): strin
     item: "Snack",
     import: "Student list",
     district: "District",
+    classroom: "Class",
   };
   return labels[subjectType] ?? "Subject";
 }

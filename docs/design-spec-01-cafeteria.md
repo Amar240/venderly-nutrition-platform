@@ -103,3 +103,4 @@ Stated here because it is a design guarantee, not an oversight: browse or search
 2. At the Early Childhood Center, does a teacher or the cafeteria staff record breakfast?
 3. What happens today when the network drops during service?
 4. Does anyone need to record a second meal for a child, and under whose authority?
+5. Where does class/homeroom assignment actually come from, and how often does it change? Not in the confirmed Infinite Campus export (see D-13) — the pilot seeds this directly and gives admins a manual screen until we know the real source.

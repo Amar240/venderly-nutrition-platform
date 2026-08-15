@@ -2,14 +2,10 @@ import { Prisma, type MealType } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { requireRole, canAccessSchool } from "@/server/auth/rbac";
 import type { AppSession } from "@/server/auth/types";
-import { deriveBalanceCents } from "@/server/ledger/ledger";
-import { lockAccountsForUpdate } from "@/server/ledger/balanceGuard";
-import { getStudentTier } from "./pricing";
-import { computeMealPriceCents } from "./pricing";
-import { getResolvedPricingConfig } from "@/server/pricing/config";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
 import { districtToday } from "@/server/time/district";
-import { lowBalanceThresholdForChild } from "@/server/household/balance";
+import { findLiveServedStudentIds } from "./mealCounts";
+import { lockCashierAndChooseRecordedAt, MealStudentWriteError, writeMealsAtomic } from "./recordMealsAtomic";
 
 /**
  * Meal recording — the POS entry point for breakfast/lunch.
@@ -56,79 +52,56 @@ export async function recordMeal(input: {
     return { status: "not_active_at_school" };
   }
 
-  // Price is computed here and used ONLY to size the debit. It never leaves.
-  const tier = await getStudentTier(student.id);
-  const config = await getResolvedPricingConfig(student.districtId, student.schoolId);
-  const priceCents = computeMealPriceCents(input.mealType, tier, config);
-  const lunchPriceCents = computeMealPriceCents("LUNCH", tier, config);
-  const lowBalanceThresholdCents = lowBalanceThresholdForChild({
-    balanceCents: student.account?.balanceCents ?? 0,
-    lunchPriceCents,
-    lowBalanceMealsThreshold: config.lowBalanceMealsThreshold,
-    lowBalanceThresholdCents: config.lowBalanceThresholdCents,
-  });
   const serviceDate = await districtToday(student.districtId);
+  const alreadyRecorded = await findLiveServedStudentIds({
+    studentIds: [student.id],
+    schoolId: student.schoolId,
+    serviceDate,
+    mealType: input.mealType,
+  });
+  if (alreadyRecorded.has(student.id)) return { status: "duplicate" };
+
   const recordingBatchId = crypto.randomUUID();
   let recordedAt: Date;
+  let notifications: Awaited<ReturnType<typeof writeMealsAtomic>> = [];
 
   try {
-    recordedAt = await prisma.$transaction(async (tx) => {
-      // Serialize successful entries and undo validation for this cashier.
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${staff.userId} FOR UPDATE`;
-      const previous = await tx.mealEvent.findFirst({
-        where: { recordedByUserId: staff.userId },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { createdAt: true },
+    const committed = await prisma.$transaction(async (tx) => {
+      const at = await lockCashierAndChooseRecordedAt(tx, staff.userId);
+      const notifications = await writeMealsAtomic(tx, {
+        students: [student],
+        mealType: input.mealType,
+        serviceDate,
+        cashierId: staff.userId,
+        batchId: recordingBatchId,
+        recordedAt: at,
       });
-      const wallClock = new Date();
-      const recordedAt = previous && wallClock.getTime() <= previous.createdAt.getTime()
-        ? new Date(previous.createdAt.getTime() + 1)
-        : wallClock;
-      // The partial live-event unique index is the duplicate guard. A retained
-      // reversed row does not block a later ordinary recording.
-      const mealEvent = await tx.mealEvent.create({
-        data: {
-          studentId: student.id,
-          schoolId: student.schoolId,
-          serviceDate,
-          mealType: input.mealType,
-          priceCents,
-          recordedByUserId: staff.userId,
-          recordingBatchId,
-          ledgerEntryId: null,
-          createdAt: recordedAt,
-        },
-      });
-      // Meals are recorded, never denied (only a-la-carte is). Charge only when
-      // priced (under CEP the price is $0 and no ledger entry is written).
-      if (priceCents > 0 && student.account) {
-        await lockAccountsForUpdate(tx, [student.account.id]);
-        const debit = await tx.ledgerEntry.create({
-          data: {
-            accountId: student.account.id,
-            type: "MEAL_CHARGE",
-            amountCents: -priceCents,
-            description: input.mealType === "BREAKFAST" ? "Breakfast meal" : "Lunch meal",
-            actorType: "USER",
-            actorId: staff.userId,
-          },
-        });
-        const balance = await deriveBalanceCents(student.account.id, tx);
-        await tx.account.update({ where: { id: student.account.id }, data: { balanceCents: balance } });
-        await tx.mealEvent.update({ where: { id: mealEvent.id }, data: { ledgerEntryId: debit.id } });
-      }
-      return recordedAt;
+      return { recordedAt: at, notifications };
     });
+    recordedAt = committed.recordedAt;
+    notifications = committed.notifications;
   } catch (err) {
+    if (err instanceof MealStudentWriteError && err.code === "DUPLICATE") {
+      return { status: "duplicate" };
+    }
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return { status: "duplicate" }; // same student + date + meal type
     }
     throw err;
   }
 
-  // A priced meal (non-CEP) can cross the low-balance line; $0 CEP meals can't.
-  if (priceCents > 0) {
-    await notifyIfLowBalanceCrossed(student.id, priceCents, lowBalanceThresholdCents);
+  for (const notification of notifications) {
+    try {
+      await notifyIfLowBalanceCrossed(
+        notification.studentId,
+        notification.debitCents,
+        notification.thresholdCents,
+      );
+    } catch (error) {
+      // The meal is already committed; notification delivery must not make the
+      // cashier believe it failed and record the child a second time.
+      console.error("[meal] low-money notification failed after recording", error);
+    }
   }
 
   return {

@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/client";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Pricing CONFIG resolution — the config values and low-balance threshold.
@@ -34,8 +35,9 @@ export const DEFAULT_PRICING_CONFIG: ResolvedPricingConfig = {
 export async function getResolvedPricingConfig(
   districtId: string,
   schoolId?: string | null,
+  db: Pick<Prisma.TransactionClient, "pricingConfig"> = prisma,
 ): Promise<ResolvedPricingConfig> {
-  const configs = await prisma.pricingConfig.findMany({
+  const configs = await db.pricingConfig.findMany({
     where: {
       districtId,
       OR: [{ schoolId: schoolId ?? undefined }, { schoolId: null }],

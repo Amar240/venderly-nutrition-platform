@@ -3,6 +3,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { dailyMealCounts } from "./mealCounts";
 import { monthlyDeposits } from "./deposits";
 import { districtDashboard } from "./dashboard";
+import { editCheckCeiling, editCheckReport } from "./editCheck";
 import { listTransactions, transactionsToCsv } from "./transactions";
 import { searchAuditLog } from "@/server/audit/query";
 import { withLedgerAdmin } from "@/server/ledger/admin";
@@ -26,6 +27,7 @@ try {
 }
 
 const districtIds: string[] = [];
+const FNS_FEDERAL_DEFAULT_FACTOR_BPS = 9380;
 afterAll(async () => {
   for (const id of districtIds) {
     await prisma.auditLog.deleteMany({ where: { districtId: id } });
@@ -51,13 +53,19 @@ interface Fixture {
   schoolAId: string;
   schoolBId: string;
   mealStudentId: string;
+  schoolAStudentIds: string[];
   superAdmin: AppSession;
   adminA: AppSession;
   guardian: AppSession;
 }
 
 async function fresh(): Promise<Fixture> {
-  const district = await prisma.district.create({ data: { name: `TEST-${crypto.randomUUID()}` } });
+  const district = await prisma.district.create({
+    data: {
+      name: `TEST-${crypto.randomUUID()}`,
+      stateAttendanceFactorBps: FNS_FEDERAL_DEFAULT_FACTOR_BPS,
+    },
+  });
   districtIds.push(district.id);
   const schoolA = await prisma.school.create({ data: { districtId: district.id, name: "Alpha", code: `A${Math.random().toString(36).slice(2, 6)}` } });
   const schoolB = await prisma.school.create({ data: { districtId: district.id, name: "Beta", code: `B${Math.random().toString(36).slice(2, 6)}` } });
@@ -76,8 +84,8 @@ async function fresh(): Promise<Fixture> {
     return { id: s.id, accountId: acc.id };
   }
   const a1 = await mk(schoolA.id, `A1-${crypto.randomUUID()}`, 9999, [{ type: "DEPOSIT", amt: 5000 }]); // healthy
-  await mk(schoolA.id, `A2-${crypto.randomUUID()}`, 9999, [{ type: "DEPOSIT", amt: 500 }]); // low (<1000)
-  await mk(schoolA.id, `A3-${crypto.randomUUID()}`, 9999, [{ type: "DEPOSIT", amt: 1000 }, { type: "ADJUSTMENT", amt: -1200 }]); // negative (-200)
+  const a2 = await mk(schoolA.id, `A2-${crypto.randomUUID()}`, 9999, [{ type: "DEPOSIT", amt: 500 }]); // low (<1000)
+  const a3 = await mk(schoolA.id, `A3-${crypto.randomUUID()}`, 9999, [{ type: "DEPOSIT", amt: 1000 }, { type: "ADJUSTMENT", amt: -1200 }]); // negative (-200)
   await mk(schoolB.id, `B1-${crypto.randomUUID()}`, 0, [{ type: "DEPOSIT", amt: 3000 }]);
 
   // Meals for A1 today: one served (seq 0) + one override (seq 1).
@@ -111,11 +119,25 @@ async function fresh(): Promise<Fixture> {
 
   return {
     districtId: district.id, schoolAId: schoolA.id, schoolBId: schoolB.id, mealStudentId: a1.id,
+    schoolAStudentIds: [a1.id, a2.id, a3.id],
     superAdmin: staff("SUPER_ADMIN", []),
     adminA: staff("DISTRICT_ADMIN", [schoolA.id]),
     guardian: { principalType: "guardian", guardianId: `g-${crypto.randomUUID()}`, role: "GUARDIAN" },
   };
 }
+
+describe("edit-check ceiling", () => {
+  it("uses integer basis points and rounds down", () => {
+    expect(editCheckCeiling(51, FNS_FEDERAL_DEFAULT_FACTOR_BPS)).toBe(47);
+    expect(editCheckCeiling(200, FNS_FEDERAL_DEFAULT_FACTOR_BPS)).toBe(187);
+    expect(editCheckCeiling(0, FNS_FEDERAL_DEFAULT_FACTOR_BPS)).toBe(0);
+  });
+
+  it("rejects invalid calculation inputs", () => {
+    expect(() => editCheckCeiling(-1, FNS_FEDERAL_DEFAULT_FACTOR_BPS)).toThrow(RangeError);
+    expect(() => editCheckCeiling(51, 10_001)).toThrow(RangeError);
+  });
+});
 
 describe.skipIf(!dbUp)("daily meal counts (D-10)", () => {
   it("reports served (seq 0) as the headline and overrides SEPARATELY, never summed", async () => {
@@ -147,6 +169,103 @@ describe.skipIf(!dbUp)("daily meal counts (D-10)", () => {
   });
 });
 
+describe.skipIf(!dbUp)("edit-check report", () => {
+  it("compares live normal meals with the floored ceiling and keeps equality unflagged", async () => {
+    const f = await fresh();
+    const today = utcToday();
+
+    await prisma.mealEvent.create({
+      data: {
+        studentId: f.schoolAStudentIds[1]!,
+        schoolId: f.schoolAId,
+        serviceDate: today,
+        mealType: "LUNCH",
+        priceCents: 0,
+      },
+    });
+
+    const atCeiling = await editCheckReport(f.superAdmin, { from: today, to: today });
+    expect(atCeiling.status).toBe("available");
+    if (atCeiling.status !== "available") throw new Error("Expected configured edit check");
+    const rowAtCeiling = atCeiling.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "LUNCH")!;
+    expect(rowAtCeiling).toMatchObject({
+      activeEnrollment: 3,
+      claimedCount: 2,
+      ceiling: 2,
+      needsAttention: false,
+    });
+    expect(atCeiling.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "BREAKFAST")).toBeUndefined();
+
+    await prisma.mealEvent.create({
+      data: {
+        studentId: f.schoolAStudentIds[2]!,
+        schoolId: f.schoolAId,
+        serviceDate: today,
+        mealType: "LUNCH",
+        priceCents: 0,
+      },
+    });
+    const aboveCeiling = await editCheckReport(f.superAdmin, { from: today, to: today });
+    if (aboveCeiling.status !== "available") throw new Error("Expected configured edit check");
+    expect(aboveCeiling.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "LUNCH")).toMatchObject({
+      claimedCount: 3,
+      ceiling: 2,
+      needsAttention: true,
+    });
+  });
+
+  it("uses current active enrollment and preserves serving-school attribution", async () => {
+    const f = await fresh();
+    await prisma.student.update({
+      where: { id: f.mealStudentId },
+      data: { schoolId: f.schoolBId },
+    });
+    const today = utcToday();
+    const report = await editCheckReport(f.superAdmin, { from: today, to: today });
+    if (report.status !== "available") throw new Error("Expected configured edit check");
+    const alphaLunch = report.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "LUNCH")!;
+    expect(alphaLunch.schoolName).toBe("Alpha");
+    expect(alphaLunch.claimedCount).toBe(1);
+    expect(alphaLunch.activeEnrollment).toBe(2);
+  });
+
+  it("stays school-scoped and never returns protected pricing data", async () => {
+    const f = await fresh();
+    const report = await editCheckReport(f.adminA, { from: utcToday(), to: utcToday() });
+    if (report.status !== "available") throw new Error("Expected configured edit check");
+    expect(report.rows.every((row) => row.schoolId === f.schoolAId)).toBe(true);
+    expect(JSON.stringify(report).toLowerCase()).not.toContain("tier");
+    expect(JSON.stringify(report).toLowerCase()).not.toContain("eligib");
+    await expect(
+      editCheckReport(f.guardian, { from: utcToday(), to: utcToday() }),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("returns a safe unavailable state instead of substituting a percentage", async () => {
+    const f = await fresh();
+    await prisma.district.update({
+      where: { id: f.districtId },
+      data: { stateAttendanceFactorBps: null },
+    });
+    await expect(editCheckReport(f.superAdmin, { from: utcToday(), to: utcToday() })).resolves.toEqual({
+      status: "unavailable",
+      message: "Meal-count ceilings are not available because the district percentage is not set. Ask a system administrator to update the district record.",
+    });
+  });
+
+  it("enforces the district percentage database range", async () => {
+    const f = await fresh();
+    await expect(prisma.district.update({
+      where: { id: f.districtId },
+      data: { stateAttendanceFactorBps: 10_001 },
+    })).rejects.toThrow();
+    await expect(prisma.district.update({
+      where: { id: f.districtId },
+      data: { stateAttendanceFactorBps: -1 },
+    })).rejects.toThrow();
+  });
+});
+
 describe.skipIf(!dbUp)("monthly deposits (ledger-derived)", () => {
   it("sums deposits and refunds/adjustments by type from the ledger", async () => {
     const f = await fresh();
@@ -168,6 +287,38 @@ describe.skipIf(!dbUp)("district dashboard", () => {
     expect(alpha.negativeBalanceCount).toBe(1); // A3 (-200), despite cache 9999
     expect(alpha.mealsServed).toBe(1); // excludes the override
     expect(alpha.mealOverrides).toBe(1);
+    expect(dash.editCheckExceptions).toEqual([]);
+  });
+
+  it("surfaces only the current district-day edit-check exception", async () => {
+    const f = await fresh();
+    const currentDate = new Date("2026-08-15T00:00:00.000Z");
+    const pastDate = new Date("2026-08-14T00:00:00.000Z");
+    const futureDate = new Date("2026-08-16T00:00:00.000Z");
+
+    for (const serviceDate of [pastDate, currentDate, futureDate]) {
+      await prisma.mealEvent.createMany({
+        data: f.schoolAStudentIds.map((studentId) => ({
+          studentId,
+          schoolId: f.schoolAId,
+          serviceDate,
+          mealType: "BREAKFAST" as const,
+          priceCents: 0,
+        })),
+      });
+    }
+
+    const dash = await districtDashboard(f.superAdmin, new Date("2026-08-15T16:00:00.000Z"));
+    expect(dash.editCheckUnavailableMessage).toBeNull();
+    expect(dash.editCheckExceptions).toHaveLength(1);
+    expect(dash.editCheckExceptions[0]).toMatchObject({
+      schoolId: f.schoolAId,
+      mealType: "BREAKFAST",
+      claimedCount: 3,
+      ceiling: 2,
+      needsAttention: true,
+    });
+    expect(dash.editCheckExceptions[0]!.serviceDate).toEqual(currentDate);
   });
 });
 

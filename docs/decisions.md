@@ -115,6 +115,38 @@ Where no meal is recorded, say only what is known — "No lunch recorded" — wh
 
 **Knock-on:** the welfare signal in `design-spec-07-insights.md` originally read "ate regularly last month, hasn't this week, and is marked present at school." Without attendance the rule is eating pattern alone, which is weaker and more prone to false positives. State it accurately in the UI, and treat attendance as something worth asking the district for — it would materially improve that signal.
 
+## D-13 · Classroom is a separate, admin-maintained record — not a Student field, not an import column
+**Decided:** stage B · **Status:** settled
+
+Roster mode (`design-spec-01-cafeteria.md` §1.2) needs "which class is this student in." Homeroom/teacher assignment is not in the confirmed Infinite Campus export (the nine columns in CLAUDE.md) and not in OneRoster either — the same gap D-12 hit with attendance. Extending the importer to expect a class column would build the pilot around a field the real integration doesn't supply, and the problem would just resurface at phase 8.
+
+A plain string field on `Student` was also rejected: a teacher name typed per student invites drift ("Ms. Garcia" vs "Ms Garcia" vs "Garcia") with no single place to rename a class or see its roster.
+
+**Decision:** a new `Classroom` model — `id`, `teacherName`, `schoolId`, `grade` (optional), `active` — with a nullable `classroomId` on `Student`. Not a join table: a student has at most one current classroom, so a direct foreign key is the right level of complexity; revisit only if mid-year reassignment history ever matters. Maintained through its own admin screen ("Manage classes": create a class, assign or reassign students), independent of the CSV importer. Same reasoning as D-1's separate `StudentPricing` table: something with its own lifecycle gets its own table rather than a field bolted onto Student. `active` follows the same soft-delete convention as `Student.enrollmentStatus` (rule 10) — a retired classroom is deactivated, never deleted, since students remain linked to it historically.
+
+Binding constraints:
+- A student's `classroomId` must reference a classroom at their own school.
+- Only the Early Childhood Center and elementary need this in the pilot. Other schools leave `classroomId` null and keep using numeric entry.
+- A student missing a `classroomId` at a roster-mode school is a data problem to surface to an admin, not a silent gap — roster mode shows them as unassigned rather than omitting them.
+- Reassigning a student's classroom is audited (it affects where a meal gets recorded), but it is not sensitive data — no confidentiality boundary like D-1's is needed.
+- Creating, deactivating, and assigning students to a classroom requires `SCHOOL_STAFF` or above, scoped the same way the role already is: school staff act only within their own school, district admin reaches any school in their district. This sits with the front-office actions in `design-spec-02`, not with rare district-level config like D-2's pricing screen — it's a same-day operational task, not a financial change.
+- If the student-list upload moves a student to a different school and they hold a `classroomId` at their prior school, the import clears it to null in the same transaction and records it in the import's audit trail (prior classroom noted, reason: school change). The student then appears as unassigned in roster mode at their new school if it is a roster-mode school, visible to front-office staff to fix — never silently dropped, and the upload is never rejected over it.
+- Deactivating a classroom does not clear the `classroomId` of students linked to it, and does not block deactivation. Roster mode resolves status at read time by checking whether the linked classroom is still active: a student in a deactivated classroom appears as needing class assignment — the same unassigned treatment a null `classroomId` gets — never grouped under the retired classroom and never silently hidden. No separate audit event is needed here; deactivating the classroom is already the audited action.
+- The importer is untouched. Classes and assignments are seeded directly in `prisma/seed-data.ts` for the pilot. If Infinite Campus later confirms where class data lives, phase 8 can extend the importer to populate `Classroom` and `Student.classroomId` — the schema doesn't need to change, only the importer.
+
+## D-14 · The state attendance factor is a seeded district field, not a new settings screen
+**Decided:** stage B · **Status:** settled
+
+The edit check (`design-spec-05-claims-and-compliance.md`) needs a state-supplied attendance factor to compute the enrollment-based ceiling. Like `identifiedStudentPercentageBps` (the CEP percentage), it is external, district-scoped, precise config — not something derived from data we hold, and not something we can compute (D-12: we have no attendance data at all).
+
+**Decision:** add it to `District` as an integer basis-points field, same shape and same precedent as `identifiedStudentPercentageBps` — which also has no admin edit screen today, only schema, seed, and migration. Give the attendance factor the same treatment rather than building a one-off settings UI for it now: that would leave one compliance number editable and another not, for no real reason, and would be scope creep on the edit-check item.
+
+**Open follow-up:** neither number has an admin UI yet. When a district-settings screen gets built (Stage C's pricing config screen is the natural place, or a dedicated compliance-settings screen), it should cover both `identifiedStudentPercentageBps` and the attendance factor together, not just whichever one prompted it. Noting this now so it isn't lost.
+
+**Seeded value and rounding (researched, not assumed):** no Delaware-specific published attendance factor was found in Delaware DOE's public School Nutrition Program materials. Seed the FNS national default instead — 9380 basis points (93.8%), unchanged since SY 2011-12, the federal fallback under 7 CFR 210.8 when no state or local factor has been developed. Do not label it as Delaware's factor in code, seed comments, or on screen — label it as the federal default, and the edit-check report must carry a visible note that the district should confirm whether Delaware or Woodbridge has its own locally-approved factor to use instead. Same honesty boundary as `TRUST_COPY.claimFigures`.
+
+Ceiling = enrollment × attendance factor, rounded **down** to the nearest whole meal, per category. The ceiling is a maximum threshold used to flag over-claiming; rounding up would inflate it and let over-claims slip through undetected. This is a reasoned default, not a cited federal rounding rule — no explicit rounding instruction was found in the sources checked, so flag it as reviewable if the district's own auditor uses a different convention.
+
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 
@@ -128,3 +160,7 @@ Super-admin "create staff user" sets the shared demo password (hashed) and gener
 This is a demo shortcut, not a production pattern. Production needs an email invite with a set-password link and self-enrolled TOTP — not a shared password and not an admin-visible secret. Phase 8 replaces this flow.
 
 Notification bodies carry money amounts and student names only — never a pricing tier or eligibility category (D-1). Generation goes through `NotificationPort` (in-app pilot; GoHighLevel in phase 8).
+
+(Duplicate D-13 from a parallel session, merged into the entry above. Removed to keep one authoritative source per decision — see the D-13 above for the settled version.)
+
+A student without a `classId` at a roster-mode school is a data problem to surface to an admin, not a silent gap — roster mode should show them as unassigned rather than omitting them.

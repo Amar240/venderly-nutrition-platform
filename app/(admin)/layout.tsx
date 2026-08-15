@@ -17,6 +17,7 @@ export default async function AdminLayout({
   const nav: NavItem[] = [
     { label: "Overview", href: "/admin" },
     { label: "Students", href: "/admin/students" },
+    { label: "Classes", href: "/admin/classes" },
     { label: "Reports", href: "/admin/reports" },
   ];
   // Delivery log: district admin+. Staff activity + settings: super admin only.
