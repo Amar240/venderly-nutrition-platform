@@ -7,8 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { CheckCircleIcon, AlertCircleIcon } from "@/components/icons";
 
-interface SchoolRow { id: string; name: string; code: string }
+interface SchoolRow {
+  id: string;
+  name: string;
+  code: string;
+  breakfastServiceEndMinutes: number | null;
+  lunchServiceEndMinutes: number | null;
+}
 const initial: ConfigState = { error: null, ok: false };
+
+function timeValue(minutes: number | null) {
+  if (minutes === null) return "";
+  const h = Math.floor(minutes / 60).toString().padStart(2, "0");
+  const m = (minutes % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
 
 function Feedback({ state }: { state: ConfigState }) {
   if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Saved</span>;
@@ -29,6 +42,8 @@ export function SchoolsManager({ schools }: { schools: SchoolRow[] }) {
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="space-y-1"><Label htmlFor="ns-name">Name</Label><Input id="ns-name" name="name" required /></div>
           <div className="space-y-1"><Label htmlFor="ns-code">Code</Label><Input id="ns-code" name="code" required /></div>
+          <div className="space-y-1"><Label htmlFor="ns-breakfast">Breakfast ends</Label><Input id="ns-breakfast" name="breakfastServiceEnd" type="time" /></div>
+          <div className="space-y-1"><Label htmlFor="ns-lunch">Lunch ends</Label><Input id="ns-lunch" name="lunchServiceEnd" type="time" /></div>
           <Submit>Add</Submit>
           <Feedback state={createState} />
         </div>
@@ -49,6 +64,8 @@ function SchoolEditRow({ school }: { school: SchoolRow }) {
         <input type="hidden" name="schoolId" value={school.id} />
         <div className="space-y-1"><Label htmlFor={`sn-${school.id}`}>Name</Label><Input id={`sn-${school.id}`} name="name" defaultValue={school.name} required /></div>
         <div className="space-y-1"><Label htmlFor={`sc-${school.id}`}>Code</Label><Input id={`sc-${school.id}`} name="code" defaultValue={school.code} required /></div>
+        <div className="space-y-1"><Label htmlFor={`sb-${school.id}`}>Breakfast ends</Label><Input id={`sb-${school.id}`} name="breakfastServiceEnd" type="time" defaultValue={timeValue(school.breakfastServiceEndMinutes)} /></div>
+        <div className="space-y-1"><Label htmlFor={`sl-${school.id}`}>Lunch ends</Label><Input id={`sl-${school.id}`} name="lunchServiceEnd" type="time" defaultValue={timeValue(school.lunchServiceEndMinutes)} /></div>
         <Submit>Save</Submit>
         <Feedback state={state} />
       </form>

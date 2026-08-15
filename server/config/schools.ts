@@ -12,15 +12,47 @@ export function listSchools(session: AppSession | null | undefined): Promise<Sch
   return prisma.school.findMany({ where: { districtId: staff.districtId }, orderBy: { name: "asc" } });
 }
 
+export interface SchoolConfigInput {
+  name: string;
+  code: string;
+  breakfastServiceEndMinutes?: number | null;
+  lunchServiceEndMinutes?: number | null;
+}
+
+function schoolFields(s: SchoolConfigInput | School) {
+  return {
+    name: s.name,
+    code: s.code,
+    breakfastServiceEndMinutes: s.breakfastServiceEndMinutes ?? null,
+    lunchServiceEndMinutes: s.lunchServiceEndMinutes ?? null,
+  };
+}
+
+function assertSchoolInput(input: SchoolConfigInput) {
+  if (!input.name.trim() || !input.code.trim()) throw new ConfigError("INVALID");
+  for (const minutes of [input.breakfastServiceEndMinutes, input.lunchServiceEndMinutes]) {
+    if (minutes === null || minutes === undefined) continue;
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1439) throw new ConfigError("INVALID");
+  }
+}
+
 export async function createSchool(
   session: AppSession | null | undefined,
-  input: { name: string; code: string },
+  input: SchoolConfigInput,
 ): Promise<School> {
   const staff = assertSuperAdmin(session);
-  if (!input.name.trim() || !input.code.trim()) throw new ConfigError("INVALID");
+  assertSchoolInput(input);
   let school: School;
   try {
-    school = await prisma.school.create({ data: { districtId: staff.districtId, name: input.name.trim(), code: input.code.trim() } });
+    school = await prisma.school.create({
+      data: {
+        districtId: staff.districtId,
+        name: input.name.trim(),
+        code: input.code.trim(),
+        breakfastServiceEndMinutes: input.breakfastServiceEndMinutes ?? null,
+        lunchServiceEndMinutes: input.lunchServiceEndMinutes ?? null,
+      },
+    });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") throw new ConfigError("INVALID");
     throw err;
@@ -28,7 +60,7 @@ export async function createSchool(
   await writeAudit({
     actorType: "USER", actorId: staff.userId, action: "CONFIG_SCHOOL_CREATE",
     subjectType: "school", subjectId: school.id, districtId: staff.districtId, schoolId: school.id,
-    before: null, after: { name: school.name, code: school.code },
+    before: null, after: schoolFields(school),
   });
   return school;
 }
@@ -36,15 +68,23 @@ export async function createSchool(
 export async function updateSchool(
   session: AppSession | null | undefined,
   schoolId: string,
-  input: { name: string; code: string },
+  input: SchoolConfigInput,
 ): Promise<School> {
   const staff = assertSuperAdmin(session);
-  if (!input.name.trim() || !input.code.trim()) throw new ConfigError("INVALID");
+  assertSchoolInput(input);
   const before = await prisma.school.findFirst({ where: { id: schoolId, districtId: staff.districtId } });
   if (!before) throw new ConfigError("NOT_FOUND");
   let after: School;
   try {
-    after = await prisma.school.update({ where: { id: schoolId }, data: { name: input.name.trim(), code: input.code.trim() } });
+    after = await prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        name: input.name.trim(),
+        code: input.code.trim(),
+        breakfastServiceEndMinutes: input.breakfastServiceEndMinutes ?? null,
+        lunchServiceEndMinutes: input.lunchServiceEndMinutes ?? null,
+      },
+    });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") throw new ConfigError("INVALID");
     throw err;
@@ -52,7 +92,7 @@ export async function updateSchool(
   await writeAudit({
     actorType: "USER", actorId: staff.userId, action: "CONFIG_SCHOOL_UPDATE",
     subjectType: "school", subjectId: schoolId, districtId: staff.districtId, schoolId,
-    before: { name: before.name, code: before.code }, after: { name: after.name, code: after.code },
+    before: schoolFields(before), after: schoolFields(after),
   });
   return after;
 }

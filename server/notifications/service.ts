@@ -2,7 +2,6 @@ import { prisma } from "@/server/db/client";
 import { formatCents } from "@/lib/utils";
 import { notificationPort } from "@/server/ports/notification";
 import { getBalanceCents } from "@/server/ledger/ledger";
-import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
 
 /**
  * Notification generation. Bodies carry money amounts and student NAMES only —
@@ -59,7 +58,11 @@ export async function notifyTransferCompleted(input: {
  * threshold (before ≥ threshold && after < threshold). `after` is derived from
  * the ledger; `before` is `after + debitCents`. No-op if not a crossing.
  */
-export async function notifyIfLowBalanceCrossed(studentId: string, debitCents: number): Promise<void> {
+export async function notifyIfLowBalanceCrossed(
+  studentId: string,
+  debitCents: number,
+  thresholdCents: number,
+): Promise<void> {
   if (debitCents <= 0) return;
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -69,8 +72,7 @@ export async function notifyIfLowBalanceCrossed(studentId: string, debitCents: n
 
   const after = await getBalanceCents(student.account.id);
   const before = after + debitCents;
-  const threshold = await resolveLowBalanceThresholdCents(student.districtId, student.schoolId);
-  if (!(before >= threshold && after < threshold)) return; // only on the crossing
+  if (!(before >= thresholdCents && after < thresholdCents)) return; // only on the crossing
 
   for (const link of student.guardianLinks) {
     await notificationPort.notify({

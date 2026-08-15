@@ -12,6 +12,9 @@ import { requireGuardianOf } from "@/server/auth/rbac";
 import { writeAudit } from "@/server/audit/log";
 import { AuthError } from "@/server/auth/errors";
 import { notifyTransferCompleted, notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { getResolvedPricingConfig } from "@/server/pricing/config";
+import { lowBalanceThresholdForChild } from "@/server/household/balance";
+import { prisma } from "@/server/db/client";
 
 export interface DepositState {
   error: string | null;
@@ -78,6 +81,7 @@ export async function transferAction(
   if (!session || session.principalType !== "guardian") {
     return { error: "Please sign in again." };
   }
+  const household = await getHousehold(session);
   const fromStudentId = String(formData.get("fromStudentId") ?? "");
   const toStudentId = String(formData.get("toStudentId") ?? "");
   const token = String(formData.get("token") ?? "");
@@ -112,7 +116,23 @@ export async function transferAction(
         after: { toStudentId, amountCents: cents },
       });
       await notifyTransferCompleted({ guardianId: session.guardianId, fromStudentId, toStudentId, amountCents: cents });
-      await notifyIfLowBalanceCrossed(fromStudentId, cents);
+      const fromChild = household.find((child) => child.studentId === fromStudentId);
+      if (fromChild) {
+        const source = await prisma.student.findUnique({
+          where: { id: fromStudentId },
+          select: { districtId: true, schoolId: true },
+        });
+        if (source) {
+          const config = await getResolvedPricingConfig(source.districtId, source.schoolId);
+          const threshold = lowBalanceThresholdForChild({
+            balanceCents: fromChild.balanceCents,
+            lunchPriceCents: fromChild.lunchPriceCents,
+            lowBalanceMealsThreshold: config.lowBalanceMealsThreshold,
+            lowBalanceThresholdCents: config.lowBalanceThresholdCents,
+          });
+          await notifyIfLowBalanceCrossed(fromStudentId, cents, threshold);
+        }
+      }
     }
   } catch (err) {
     if (err instanceof LedgerError && err.code === "INSUFFICIENT_FUNDS") {

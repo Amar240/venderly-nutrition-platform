@@ -16,6 +16,7 @@ export interface ResolvedPricingConfig {
   lunchReducedCents: number;
   lunchPaidCents: number;
   lowBalanceThresholdCents: number;
+  lowBalanceMealsThreshold: number;
 }
 
 export const DEFAULT_PRICING_CONFIG: ResolvedPricingConfig = {
@@ -27,6 +28,7 @@ export const DEFAULT_PRICING_CONFIG: ResolvedPricingConfig = {
   lunchReducedCents: 0,
   lunchPaidCents: 0,
   lowBalanceThresholdCents: 1000,
+  lowBalanceMealsThreshold: 5,
 };
 
 export async function getResolvedPricingConfig(
@@ -53,6 +55,7 @@ export async function getResolvedPricingConfig(
     lunchReducedCents: chosen.lunchReducedCents,
     lunchPaidCents: chosen.lunchPaidCents,
     lowBalanceThresholdCents: chosen.lowBalanceThresholdCents,
+    lowBalanceMealsThreshold: chosen.lowBalanceMealsThreshold,
   };
 }
 

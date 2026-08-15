@@ -24,6 +24,7 @@ export default async function PricingConfigPage() {
     lunchReducedCents: district?.lunchReducedCents ?? 0,
     lunchPaidCents: district?.lunchPaidCents ?? 0,
     lowBalanceThresholdCents: district?.lowBalanceThresholdCents ?? 1000,
+    lowBalanceMealsThreshold: district?.lowBalanceMealsThreshold ?? 5,
   };
 
   return (

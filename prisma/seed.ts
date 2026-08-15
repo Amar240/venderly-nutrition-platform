@@ -43,6 +43,9 @@ const STAFF_TOTP_ENV: Partial<Record<Role, string | undefined>> = {
 const rng = mulberry32(20260812);
 const pick = <T>(arr: T[]): T => arr[Math.floor(rng() * arr.length)]!;
 const randint = (a: number, b: number) => a + Math.floor(rng() * (b - a + 1));
+const WOODBRIDGE_TIME_ZONE = "America/New_York";
+const BREAKFAST_END_MINUTES = 9 * 60;
+const LUNCH_END_MINUTES = 13 * 60;
 
 const FIRST_NAMES = [
   "Ava", "Liam", "Sofia", "Noah", "Mia", "Ethan", "Isabella", "Mason",
@@ -60,6 +63,25 @@ const LAST_NAMES = [
 
 async function hash(pw: string) {
   return bcrypt.hash(pw, 10);
+}
+
+function districtDateOnly(now = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: WOODBRIDGE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  return new Date(Date.UTC(get("year"), get("month") - 1, get("day")));
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate() + days,
+  ));
 }
 
 async function reset() {
@@ -175,6 +197,7 @@ async function main() {
     data: {
       name: "Woodbridge School District",
       identifiedStudentPercentageBps: WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
+      timeZone: WOODBRIDGE_TIME_ZONE,
     },
   });
 
@@ -190,6 +213,7 @@ async function main() {
       lunchReducedCents: 0,
       lunchPaidCents: 0,
       lowBalanceThresholdCents: 1000,
+      lowBalanceMealsThreshold: 5,
       cepEnabled: true,
     },
   });
@@ -210,7 +234,13 @@ async function main() {
   const schools = [];
   for (const spec of WOODBRIDGE_SEED_SCHOOLS) {
     const school = await prisma.school.create({
-      data: { districtId: district.id, name: spec.name, code: spec.code },
+      data: {
+        districtId: district.id,
+        name: spec.name,
+        code: spec.code,
+        breakfastServiceEndMinutes: BREAKFAST_END_MINUTES,
+        lunchServiceEndMinutes: LUNCH_END_MINUTES,
+      },
     });
     schools.push({ ...school, grades: spec.grades, seedCount: spec.seedCount });
   }
@@ -252,21 +282,9 @@ async function main() {
       account: { create: { balanceCents: 900 } }, // low — shows warn pill
     },
   });
-  const cashierDemoStudent = await prisma.student.create({
-    data: {
-      districtId: district.id,
-      schoolId: wheatley.id,
-      studentNumber: nextStudentNumber(),
-      firstName: "Nora",
-      lastName: "Bell",
-      grade: "4",
-      account: { create: { balanceCents: 1800 } },
-    },
-  });
   for (const [child, bal] of [
     [demoChildA, 4200],
     [demoChildB, 900],
-    [cashierDemoStudent, 1800],
   ] as const) {
     const acct = await prisma.account.findUniqueOrThrow({
       where: { studentId: child.id },
@@ -289,11 +307,70 @@ async function main() {
     });
   }
 
-  let studentCount = 3; // the two guardian demo children + cashier repeat student
+  const posDemoGuardian = await prisma.guardian.create({
+    data: {
+      email: "posdemo@woodbridge.demo",
+      passwordHash: guardianPasswordHash,
+      firstName: "Taylor",
+      lastName: "Bell",
+      phone: "555-0101",
+    },
+  });
+  const posDemoStudents = [
+    { firstName: "Nora", lastName: "Bell", balanceCents: 1800, grade: "4" },
+    { firstName: "Isaac", lastName: "Bell", balanceCents: 2200, grade: "5" },
+    { firstName: "Maya", lastName: "Santos", balanceCents: 1500, grade: "3" },
+    { firstName: "Leo", lastName: "Santos", balanceCents: 2600, grade: "4" },
+    { firstName: "Amina", lastName: "Cole", balanceCents: 1400, grade: "5" },
+  ];
+  for (const spec of posDemoStudents) {
+    const student = await prisma.student.create({
+      data: {
+        districtId: district.id,
+        schoolId: wheatley.id,
+        studentNumber: nextStudentNumber(),
+        firstName: spec.firstName,
+        lastName: spec.lastName,
+        grade: spec.grade,
+        account: { create: { balanceCents: spec.balanceCents } },
+      },
+    });
+    const acct = await prisma.account.findUniqueOrThrow({ where: { studentId: student.id } });
+    await prisma.ledgerEntry.create({
+      data: {
+        accountId: acct.id,
+        type: "DEPOSIT",
+        amountCents: spec.balanceCents,
+        description: "Opening balance (synthetic)",
+        actorType: "SYSTEM",
+      },
+    });
+    await prisma.guardianStudent.create({
+      data: { guardianId: posDemoGuardian.id, studentId: student.id, relationship: "Parent" },
+    });
+  }
+
+  const today = districtDateOnly();
+  await prisma.mealEvent.createMany({
+    data: [
+      { studentId: demoChildA.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+      { studentId: demoChildA.id, serviceDate: today, mealType: "LUNCH", priceCents: 0 },
+      { studentId: demoChildB.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+    ],
+  });
+  const priorOperatingDays = Array.from({ length: 5 }, (_, index) => addDays(today, -(index + 1)));
+  await prisma.mealEvent.createMany({
+    data: priorOperatingDays.flatMap((serviceDate, index) => [
+      { studentId: demoChildB.id, serviceDate, mealType: "BREAKFAST" as const, priceCents: 0 },
+      ...(index < 2 ? [{ studentId: demoChildB.id, serviceDate, mealType: "LUNCH" as const, priceCents: 0 }] : []),
+    ]),
+  });
+
+  let studentCount = 7; // Ella, Marcus, and reserved Wheatley POS students 100003-100007
   let householdIndex = 0;
   const remainingSchoolSlots = buildRemainingSchoolSlots({
     schools: WOODBRIDGE_SEED_SCHOOLS,
-    alreadyAssignedByCode: { "0779": 2, "7750": 1 },
+    alreadyAssignedByCode: { "0779": 6, "7750": 1 },
     seed: 20260815,
   });
 
@@ -429,7 +506,7 @@ async function main() {
       guardianId: demoGuardian.id,
       type: "LOW_BALANCE",
       title: "Low balance: Marcus Okafor",
-      body: "Marcus Okafor's balance is below the $10.00 low-balance threshold.",
+      body: "Marcus Okafor's snack-money balance is low. Lunch is free every day — nothing needs to be paid.",
       deliveries: {
         create: {
           channel: "IN_APP",
@@ -462,6 +539,8 @@ async function main() {
   console.log(`\nShared demo password (all accounts): ${DEMO_PASSWORD}`);
   console.log("\nGuardian sign-in (single factor, no code needed):");
   console.log("  guardian@woodbridge.demo  — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
+  console.log("  posdemo@woodbridge.demo    — Reserved POS students 100003–100007 at Phillis Wheatley");
+  console.log("  POS demo: 100003/100004 record cleanly, 100001 is duplicate lunch, 100002 is wrong school");
   console.log("  guardian1@example.com … guardianN@example.com");
   console.log("\nStaff sign-in (require 6-digit authenticator code):");
   for (const c of staffCreds) {

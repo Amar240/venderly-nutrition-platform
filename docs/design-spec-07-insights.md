@@ -45,7 +45,9 @@ An insight that is occasionally wrong and always actionable is useful. An insigh
 
 ### Welfare — the sensitive one
 
-**Students who have stopped eating.** Ate regularly last month, haven't this week, and are marked present at school.
+**Students who have stopped eating.** Ate regularly last month, haven't this week.
+
+Note the limitation honestly: we have no attendance data (D-12), so the rule cannot exclude children who were simply off school. That makes it weaker and more prone to false positives than it should be, which is exactly why the copy says "This may be nothing" and why the action routes to a person rather than triggering anything. **Attendance is worth asking the district for** — it would materially improve this signal, and it is a good reason to open that conversation.
 
 This one carries the full set of guardrails from spec 2 §2.2: a count on the dashboard and never names; the default action routes to a counsellor rather than opening a list; viewing names is audited; never visible to a cashier, never in the guardian portal, never in a general export; the rule stated plainly; dismissal honoured; and the whole feature switchable off if the district's student services team wants it off.
 

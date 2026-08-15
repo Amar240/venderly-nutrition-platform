@@ -39,11 +39,11 @@ All domain logic lives in `server/`; route handlers are thin. UI never computes 
 2. **The ledger is append-only.** No UPDATE or DELETE on ledger entries, ever. Corrections are new offsetting entries linked to the original. Balance is derived from the ledger; any cached balance is an optimization, never the source of truth.
 3. **Transfers** create a linked debit + credit sharing one `transferRef`, in a single DB transaction.
 4. **Idempotency keys** on every payment and import event (unique constraint). A retried event must never double-credit.
-5. **Eligibility is confidential.** Free/reduced/paid status never appears in any POS response, POS UI, client-side code, or log. The server prices the meal and returns only an operational result: recorded / duplicate / insufficient balance / not active at this school.
+5. **Eligibility is confidential.** Free/reduced/paid status never appears in any POS response, POS UI, client-side code, export, report, or log. The server prices the meal and returns only an operational result: recorded / duplicate / insufficient balance / not active at this school. The guardian household query may read a linked child's tier only to show that child's resolved meal cost; it never returns the tier.
 6. **Meal uniqueness:** one meal event per student + service date + meal type (DB unique constraint). Override requires a documented, audited reason.
 7. **RBAC is enforced in `server/`, not in the UI.** Every query is scoped by district and school from the session. Guardian queries always join through the verified guardian-student relationship — no open student search for guardians. Cashiers cannot browse students, see eligibility, or touch money.
 8. **Audit everything sensitive:** logins, adjustments, transfers, overrides, exports, imports, config changes — actor, action, subject, timestamp, reason, before/after context.
-9. **Data minimization:** the Student model contains ONLY studentNumber, firstName, lastName, middleName (never displayed by default), schoolId, grade, enrollmentStatus. Never add race, ethnicity, gender, or birthdate fields. The CSV importer drops `student.raceEthnicityFed`, `student.gender`, and `student.birthdate` at parse time — they must never reach the database. Pricing tier lives in a separate `StudentPricing` table, read only by `server/meals` — see `docs/decisions.md` D-1. This rule is not a licence to add fields; it is the reason the tier lives elsewhere.
+9. **Data minimization:** the Student model contains ONLY studentNumber, firstName, lastName, middleName (never displayed by default), schoolId, grade, enrollmentStatus. Never add race, ethnicity, gender, or birthdate fields. The CSV importer drops `student.raceEthnicityFed`, `student.gender`, and `student.birthdate` at parse time — they must never reach the database. Pricing tier lives in a separate `StudentPricing` table, with exactly two authorised readers: `server/meals` pricing logic and the guardian's own household query scoped through `GuardianStudent` — see `docs/decisions.md` D-1. This rule is not a licence to add fields; it is the reason the tier lives elsewhere.
 10. **Students are never deleted** — marked inactive.
 11. **Default pricing config:** CEP-style — breakfast/lunch $0.00 for all; a-la-carte items deduct from balance and are denied if the balance would go below zero (sale stores price at time of purchase).
 12. **Payments are simulated.** A fake hosted-checkout page produces a signed-style event consumed server-side with an idempotency key. Never treat a client "payment succeeded" as proof.
@@ -62,6 +62,8 @@ All domain logic lives in `server/`; route handlers are thin. UI never computes 
 - `npx prisma migrate dev` — apply migrations
 - `npm run seed` — reset + load synthetic data (6 real Woodbridge schools, 200 synthetic students, multi-child households with differing surnames)
 - `npm test` — run tests
+- `npm run test:tz` — run tests under `TZ=Asia/Kolkata` to catch host-time date regressions
+- `npm run check` — standard pre-commit/CI gate: typecheck, lint, tests, non-US timezone tests, build, and `git diff --check`
 
 ## Working agreement
 - Implement one phase at a time per `docs/phase-N.md`; meet its acceptance criteria before moving on.

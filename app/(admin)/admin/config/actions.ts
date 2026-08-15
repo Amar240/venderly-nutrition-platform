@@ -28,6 +28,14 @@ function bust() {
   revalidatePath("/admin/config", "layout");
 }
 
+function parseMinutes(value: FormDataEntryValue | null): number | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(raw);
+  if (!match) return Number.NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 // --- Items ---------------------------------------------------------------
 export async function createItemAction(_p: ConfigState, fd: FormData): Promise<ConfigState> {
   const priceCents = parseDollarsToCents(String(fd.get("price") ?? ""));
@@ -64,11 +72,16 @@ export async function updatePricingAction(_p: ConfigState, fd: FormData): Promis
     lowBalanceThresholdCents: c("threshold"),
   };
   if (Object.values(fields).some((v) => v === null)) return fail("All amounts must be valid dollars.");
+  const lowBalanceMealsThreshold = Number(String(fd.get("mealsThreshold") ?? ""));
+  if (!Number.isInteger(lowBalanceMealsThreshold) || lowBalanceMealsThreshold < 0) {
+    return fail("Enter a whole number of meals.");
+  }
   try {
     await updatePricingConfig(await getAppSession(), {
       schoolId: null,
       cepEnabled: fd.get("cepEnabled") === "on",
       ...(fields as Record<string, number>),
+      lowBalanceMealsThreshold,
     } as never);
   } catch (e) { return mapError(e); }
   bust();
@@ -77,15 +90,31 @@ export async function updatePricingAction(_p: ConfigState, fd: FormData): Promis
 
 // --- Schools -------------------------------------------------------------
 export async function createSchoolAction(_p: ConfigState, fd: FormData): Promise<ConfigState> {
+  const breakfastServiceEndMinutes = parseMinutes(fd.get("breakfastServiceEnd"));
+  const lunchServiceEndMinutes = parseMinutes(fd.get("lunchServiceEnd"));
+  if (Number.isNaN(breakfastServiceEndMinutes) || Number.isNaN(lunchServiceEndMinutes)) return fail("Enter service times as HH:MM.");
   try {
-    await createSchool(await getAppSession(), { name: String(fd.get("name") ?? ""), code: String(fd.get("code") ?? "") });
+    await createSchool(await getAppSession(), {
+      name: String(fd.get("name") ?? ""),
+      code: String(fd.get("code") ?? ""),
+      breakfastServiceEndMinutes,
+      lunchServiceEndMinutes,
+    });
   } catch (e) { return mapError(e); }
   bust();
   return OK;
 }
 export async function updateSchoolAction(_p: ConfigState, fd: FormData): Promise<ConfigState> {
+  const breakfastServiceEndMinutes = parseMinutes(fd.get("breakfastServiceEnd"));
+  const lunchServiceEndMinutes = parseMinutes(fd.get("lunchServiceEnd"));
+  if (Number.isNaN(breakfastServiceEndMinutes) || Number.isNaN(lunchServiceEndMinutes)) return fail("Enter service times as HH:MM.");
   try {
-    await updateSchool(await getAppSession(), String(fd.get("schoolId") ?? ""), { name: String(fd.get("name") ?? ""), code: String(fd.get("code") ?? "") });
+    await updateSchool(await getAppSession(), String(fd.get("schoolId") ?? ""), {
+      name: String(fd.get("name") ?? ""),
+      code: String(fd.get("code") ?? ""),
+      breakfastServiceEndMinutes,
+      lunchServiceEndMinutes,
+    });
   } catch (e) { return mapError(e); }
   bust();
   return OK;

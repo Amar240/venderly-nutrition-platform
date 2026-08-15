@@ -28,7 +28,7 @@ function line(r: Row): string {
   return [r.num, r.first, r.last, r.middle, r.code, r.grade, r.birthdate, r.race, r.gender].map(cell).join(",");
 }
 function file(rows: Row[], headerLine = HEADERS): string {
-  return [headerLine, ...rows.map(line)].join("\r\n") + "\r\n";
+  return [headerLine, ...rows.map(line)].join("\n") + "\n";
 }
 
 async function main() {

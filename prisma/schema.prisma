@@ -104,6 +104,7 @@ model District {
   id                             String   @id @default(cuid())
   name                           String
   identifiedStudentPercentageBps Int?
+  timeZone                       String   @default("America/New_York")
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
 
@@ -117,12 +118,14 @@ model District {
 }
 
 model School {
-  id         String   @id @default(cuid())
-  districtId String
-  name       String
-  code       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                         String   @id @default(cuid())
+  districtId                 String
+  name                       String
+  code                       String
+  breakfastServiceEndMinutes Int?
+  lunchServiceEndMinutes     Int?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   district       District        @relation(fields: [districtId], references: [id])
   students       Student[]
@@ -163,8 +166,9 @@ model Student {
 }
 
 // Pricing INPUT for a student, kept OFF the Student record so rule 9's field
-// list stands unamended. Read ONLY inside server/meals pricing logic — never in
-// a POS or guardian query, response, or log. Tier changes are auditable.
+// list stands unamended. Read only by server/meals pricing logic and by the
+// guardian household query for a verified linked child — never in POS, exports,
+// reports, page source, client state, logs, or general admin views.
 model StudentPricing {
   id            String        @id @default(cuid())
   studentId     String        @unique
@@ -398,6 +402,7 @@ model PricingConfig {
   lunchReducedCents        Int      @default(0)
   lunchPaidCents           Int      @default(0)
   lowBalanceThresholdCents Int      @default(1000)
+  lowBalanceMealsThreshold Int      @default(5)
   cepEnabled               Boolean  @default(true) // Woodbridge demo default: CEP $0
   effectiveFrom            DateTime @default(now())
   createdAt                DateTime @default(now())

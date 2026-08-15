@@ -19,7 +19,13 @@ export default async function SchoolsConfigPage() {
       <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Configuration</Link>
       <h1 className="mt-2 text-2xl font-medium text-ink">Schools</h1>
       <div className="mt-6">
-        <SchoolsManager schools={schools.map((s) => ({ id: s.id, name: s.name, code: s.code }))} />
+        <SchoolsManager schools={schools.map((s) => ({
+          id: s.id,
+          name: s.name,
+          code: s.code,
+          breakfastServiceEndMinutes: s.breakfastServiceEndMinutes,
+          lunchServiceEndMinutes: s.lunchServiceEndMinutes,
+        }))} />
       </div>
     </section>
   );

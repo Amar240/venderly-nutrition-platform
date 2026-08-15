@@ -13,3 +13,15 @@ export function classifyBalance(
   if (balanceCents < thresholdCents) return "low";
   return "healthy";
 }
+
+export function lowBalanceThresholdForChild(input: {
+  balanceCents: number;
+  lunchPriceCents: number;
+  lowBalanceMealsThreshold: number;
+  lowBalanceThresholdCents: number;
+}): number {
+  if (input.lunchPriceCents > 0) {
+    return input.lowBalanceMealsThreshold * input.lunchPriceCents;
+  }
+  return input.lowBalanceThresholdCents;
+}

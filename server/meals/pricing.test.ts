@@ -11,6 +11,7 @@ const cepOn: ResolvedPricingConfig = {
   lunchReducedCents: 40,
   lunchPaidCents: 325,
   lowBalanceThresholdCents: 1000,
+  lowBalanceMealsThreshold: 5,
 };
 
 const cepOff: ResolvedPricingConfig = { ...cepOn, cepEnabled: false };

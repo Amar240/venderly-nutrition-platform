@@ -121,8 +121,12 @@ WCAG AA is the floor, not the goal. These additions come from who is actually us
 
 Sentences that appear verbatim in the product because they carry the product's promises. These are approved copy — do not paraphrase them.
 
+**No student pronouns, anywhere.** We do not store gender (rule 9; the importer drops it at parse), so we cannot know a child's pronouns and must never guess. Use the child's name where one is in scope, "your child" where none is, and "they'll" only as a last resort. This applies to every generated sentence about a specific student — cards, week summaries, notifications, and alerts.
+
+**Reassurance appears only to remove a specific plausible misconception.** Use it when a parent might wrongly think a child will be denied a reimbursable meal, or when a free-meal pattern could be mistaken for a payment problem. Do not add reassurance as general decoration.
+
 - "Nothing gets erased. The original stays where it is, and your correction sits next to it with your name and the reason."
-- "He'll still be served if it runs out."
+- "{Name} will still be served if it runs out."
 - "Meals already served keep the price they were charged at. Changing these numbers never changes anything in the past."
 - "3 columns were ignored: date of birth, race, and gender. This system doesn't store them."
 - "These are your figures to check and submit. This system doesn't file claims."

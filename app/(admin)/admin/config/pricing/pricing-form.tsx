@@ -16,6 +16,7 @@ interface Initial {
   lunchReducedCents: number;
   lunchPaidCents: number;
   lowBalanceThresholdCents: number;
+  lowBalanceMealsThreshold: number;
 }
 const initialState: ConfigState = { error: null, ok: false };
 const dollars = (c: number) => (c / 100).toFixed(2);
@@ -65,6 +66,22 @@ export function PricingForm({ initial }: { initial: Initial }) {
       </fieldset>
 
       <Money name="threshold" label="Low-balance threshold" value={initial.lowBalanceThresholdCents} />
+
+      <div className="space-y-1">
+        <Label htmlFor="mealsThreshold">Low-balance meals threshold</Label>
+        <Input
+          id="mealsThreshold"
+          name="mealsThreshold"
+          type="number"
+          min={0}
+          step={1}
+          defaultValue={initial.lowBalanceMealsThreshold}
+          required
+        />
+        <p className="text-sm text-ink-muted">
+          Used when lunch has a price. Zero-price meals use the dollar threshold for snack money.
+        </p>
+      </div>
 
       <div className="flex items-center gap-3">
         <Submit />

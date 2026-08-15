@@ -92,13 +92,15 @@ describe.skipIf(!dbUp)("pricing config", () => {
       schoolId: null, cepEnabled: false,
       breakfastFreeCents: 0, breakfastReducedCents: 30, breakfastPaidCents: 200,
       lunchFreeCents: 0, lunchReducedCents: 40, lunchPaidCents: 325, lowBalanceThresholdCents: 1000,
+      lowBalanceMealsThreshold: 5,
     });
     expect(after.lunchPaidCents).toBe(325);
+    expect(after.lowBalanceMealsThreshold).toBe(5);
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "CONFIG_PRICING_UPDATE" } });
     const serialized = JSON.stringify(audit.afterJson).toLowerCase();
     expect(serialized).not.toContain("studentpricing");
     expect(serialized).not.toContain("pricetier");
-    await expect(updatePricingConfig(f.districtAdmin, { schoolId: null, cepEnabled: true, breakfastFreeCents: 0, breakfastReducedCents: 0, breakfastPaidCents: 0, lunchFreeCents: 0, lunchReducedCents: 0, lunchPaidCents: 0, lowBalanceThresholdCents: 0 })).rejects.toBeInstanceOf(AuthError);
+    await expect(updatePricingConfig(f.districtAdmin, { schoolId: null, cepEnabled: true, breakfastFreeCents: 0, breakfastReducedCents: 0, breakfastPaidCents: 0, lunchFreeCents: 0, lunchReducedCents: 0, lunchPaidCents: 0, lowBalanceThresholdCents: 0, lowBalanceMealsThreshold: 0 })).rejects.toBeInstanceOf(AuthError);
   });
 });
 
@@ -141,7 +143,21 @@ describe.skipIf(!dbUp)("staff user management", () => {
 
   it("a duplicate school code is rejected", async () => {
     const f = await fresh();
-    await createSchool(f.superAdmin, { name: "New School", code: "NS1" });
+    await createSchool(f.superAdmin, { name: "New School", code: "NS1", breakfastServiceEndMinutes: 540, lunchServiceEndMinutes: 780 });
     await expect(createSchool(f.superAdmin, { name: "Dup", code: "NS1" })).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it("audits school service times and rejects invalid minutes", async () => {
+    const f = await fresh();
+    const school = await createSchool(f.superAdmin, {
+      name: "Timed School",
+      code: `TS${Math.random().toString(36).slice(2, 6)}`,
+      breakfastServiceEndMinutes: 540,
+      lunchServiceEndMinutes: 780,
+    });
+    expect(school.breakfastServiceEndMinutes).toBe(540);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "CONFIG_SCHOOL_CREATE", subjectId: school.id } });
+    expect(audit.afterJson).toMatchObject({ breakfastServiceEndMinutes: 540, lunchServiceEndMinutes: 780 });
+    await expect(createSchool(f.superAdmin, { name: "Bad", code: "BAD", lunchServiceEndMinutes: 1440 })).rejects.toBeInstanceOf(ConfigError);
   });
 });

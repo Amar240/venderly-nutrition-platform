@@ -4,7 +4,7 @@ import { requireRole } from "@/server/auth/rbac";
 import { AuthError } from "@/server/auth/errors";
 import type { AppSession } from "@/server/auth/types";
 import { writeAudit } from "@/server/audit/log";
-import { serviceDateToday } from "./recordMeal";
+import { districtToday } from "@/server/time/district";
 
 /**
  * Admin duplicate-meal override (rule 6). The POS never creates an override —
@@ -33,7 +33,7 @@ export async function recordMealOverride(input: {
   if (!staff || staff.principalType !== "staff") throw new AuthError("FORBIDDEN_ROLE");
   if (!input.reason?.trim()) throw new MealOverrideError("REASON_REQUIRED");
 
-  const serviceDate = input.serviceDate ?? serviceDateToday();
+  const serviceDate = input.serviceDate ?? await districtToday(staff.districtId);
 
   // There must already be a serving to override; the next seq is max + 1 (≥ 1).
   const agg = await prisma.mealEvent.aggregate({

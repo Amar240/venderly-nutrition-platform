@@ -8,6 +8,8 @@ import { getStudentTier } from "./pricing";
 import { computeMealPriceCents } from "./pricing";
 import { getResolvedPricingConfig } from "@/server/pricing/config";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { districtToday } from "@/server/time/district";
+import { lowBalanceThresholdForChild } from "@/server/household/balance";
 
 /**
  * Meal recording — the POS entry point for breakfast/lunch.
@@ -22,12 +24,6 @@ export type MealResult =
   | { status: "recorded"; studentName: string; grade: string; schoolName: string }
   | { status: "duplicate" }
   | { status: "not_active_at_school" };
-
-/** Today's service date as a date-only value (UTC midnight). */
-export function serviceDateToday(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-}
 
 export async function recordMeal(input: {
   studentNumber: string;
@@ -57,7 +53,14 @@ export async function recordMeal(input: {
   const tier = await getStudentTier(student.id);
   const config = await getResolvedPricingConfig(student.districtId, student.schoolId);
   const priceCents = computeMealPriceCents(input.mealType, tier, config);
-  const serviceDate = serviceDateToday();
+  const lunchPriceCents = computeMealPriceCents("LUNCH", tier, config);
+  const lowBalanceThresholdCents = lowBalanceThresholdForChild({
+    balanceCents: student.account?.balanceCents ?? 0,
+    lunchPriceCents,
+    lowBalanceMealsThreshold: config.lowBalanceMealsThreshold,
+    lowBalanceThresholdCents: config.lowBalanceThresholdCents,
+  });
+  const serviceDate = await districtToday(student.districtId);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -99,7 +102,7 @@ export async function recordMeal(input: {
 
   // A priced meal (non-CEP) can cross the low-balance line; $0 CEP meals can't.
   if (priceCents > 0) {
-    await notifyIfLowBalanceCrossed(student.id, priceCents);
+    await notifyIfLowBalanceCrossed(student.id, priceCents, lowBalanceThresholdCents);
   }
 
   return {

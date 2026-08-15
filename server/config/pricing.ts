@@ -20,6 +20,7 @@ export interface PricingConfigInput {
   lunchReducedCents: number;
   lunchPaidCents: number;
   lowBalanceThresholdCents: number;
+  lowBalanceMealsThreshold: number;
 }
 
 export function listPricingConfigs(session: AppSession | null | undefined): Promise<PricingConfig[]> {
@@ -37,6 +38,7 @@ function priceFields(c: PricingConfigInput | PricingConfig) {
     lunchReducedCents: c.lunchReducedCents,
     lunchPaidCents: c.lunchPaidCents,
     lowBalanceThresholdCents: c.lowBalanceThresholdCents,
+    lowBalanceMealsThreshold: c.lowBalanceMealsThreshold,
   };
 }
 
@@ -50,6 +52,9 @@ export async function updatePricingConfig(
     input.lunchFreeCents, input.lunchReducedCents, input.lunchPaidCents, input.lowBalanceThresholdCents,
   ];
   if (cents.some((n) => !Number.isInteger(n) || n < 0)) throw new ConfigError("INVALID");
+  if (!Number.isInteger(input.lowBalanceMealsThreshold) || input.lowBalanceMealsThreshold < 0) {
+    throw new ConfigError("INVALID");
+  }
 
   const schoolId = input.schoolId ?? null;
   const before = await prisma.pricingConfig.findFirst({ where: { districtId: staff.districtId, schoolId } });

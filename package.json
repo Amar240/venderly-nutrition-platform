@@ -15,7 +15,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "test": "vitest run",
+    "test:tz": "TZ=Asia/Kolkata vitest run",
     "test:e2e": "playwright test --workers=1",
+    "check": "npm run typecheck && npm run lint && npm test && npm run test:tz && npm run build && git diff --check",
+    "ci": "npm run check",
     "playwright:install": "playwright install chromium",
     "test:watch": "vitest"
   },

@@ -12,8 +12,8 @@ Settled decisions. Do not re-open these mid-implementation. If a phase spec appe
 Why: with a field on `Student`, any query doing `include: { student: true }` risks carrying the tier into a POS or guardian response, so confidentiality would depend on remembering to omit a field every time. A separate table makes the boundary structural — you must deliberately join to get it. Default-safe rather than default-leaky. It also keeps CLAUDE.md rule 9 literally true.
 
 Binding constraints:
-- `StudentPricing` is read and written ONLY inside `server/meals/pricing.ts`.
-- It must never appear in a POS or guardian query, response, log line, or audit payload.
+- `StudentPricing` is read and written only inside `server/meals/pricing.ts`, plus the guardian household view may read it for the guardian's own verified linked children.
+- It must never appear in a POS response, page source, client state, export, report, log line, or audit payload. The guardian view may show the resolved meal cost, never the tier.
 - The POS receives a resolved price and an operational result — never a tier.
 - Tier changes are audited, because in production this may derive from FRAM data.
 
@@ -26,7 +26,7 @@ Unchanged: no tier in any POS payload, page source, client state, log line, expo
 ## D-2 · PricingConfig uses explicit tier names
 **Decided:** phase 1 · **Status:** settled
 
-Six fields — `breakfast{Free,Reduced,Paid}Cents` and `lunch{Free,Reduced,Paid}Cents` — plus `lowBalanceThresholdCents` and `cepEnabled`.
+Six fields — `breakfast{Free,Reduced,Paid}Cents` and `lunch{Free,Reduced,Paid}Cents` — plus `lowBalanceThresholdCents`, `lowBalanceMealsThreshold`, and `cepEnabled`.
 
 Free-tier fields exist even though they default to 0, so pricing is a two-key lookup by (tier, mealType) with no special-case branch.
 
@@ -41,6 +41,13 @@ Shared UI components go in `components/ui/` (shadcn convention). `server/` is do
 **Decided:** phase 1 · **Status:** settled
 
 The threshold is resolved from `PricingConfig` (school override, then district default) server-side and passed to the UI as a status string. The UI never compares money. `LOW_BALANCE_THRESHOLD_CENTS` in `.env` is obsolete.
+
+**Amendment (design phase):** `PricingConfig` carries **two** thresholds, and which one applies is decided per student by that student's own meal price.
+
+- `lowBalanceMealsThreshold` (default 5) — used when the student's lunch price is greater than zero. Threshold = meals × their lunch price. A single dollar figure is wrong across tiers: $10 is a fortnight for a reduced-price child and three days for a paid one.
+- `lowBalanceThresholdCents` — used when the student's lunch price is zero. That covers CEP districts and free-tier students in charging districts, where meals-remaining is undefined and the only balance is à-la-carte.
+
+Key the decision on the student's own meal price, never on the CEP flag, so a free-tier student in a non-CEP district takes the same path. Both values stay configurable; resolution stays server-side.
 
 ## D-6 · Ledger entry type names are the phase-1 enum
 **Decided:** phase 3 · **Status:** settled
@@ -86,6 +93,19 @@ Binding constraints:
 - Only an admin action creates `seq > 0`. The POS can never produce one — a cashier hitting a duplicate is told "duplicate" and nothing else.
 - `seq > 0` requires a non-empty `overrideReason` and writes an AuditLog entry with actor, student, service date, meal type, and reason.
 - **Meal count reports must never silently sum overrides.** Report `seq = 0` as the headline count and overrides as a separate line. A student normally gets one reimbursable meal per day; if a district ever authorizes these counts as an official source, a figure that quietly includes overrides would be a compliance problem. Test that the count query excludes `seq > 0`.
+
+## D-12 · We never claim a child was absent
+**Decided:** stage A · **Status:** settled
+
+We have no attendance source. It is not in the confirmed Infinite Campus export, and OneRoster does not carry attendance. The platform must therefore never display "Not at school today" or otherwise assert why a meal is missing.
+
+Where no meal is recorded, say only what is known — "No lunch recorded" — which makes no claim about the reason. A parent who sees "not at school" for a child who was in school stops trusting everything else on the page.
+
+**Service times are different and are legitimate.** Per-school breakfast and lunch service end times are district configuration, not student data. They make the time-aware wording honest: "No lunch yet" before service ends, "No lunch recorded" after.
+
+**Mechanism:** a server-side resolver returns a status per child per meal — `ate` / `not_yet` / `not_recorded`. The UI renders the status and never compares times or computes state. If the district later supplies an attendance feed, an `absent` status can be added behind the same contract without touching the UI.
+
+**Knock-on:** the welfare signal in `design-spec-07-insights.md` originally read "ate regularly last month, hasn't this week, and is marked present at school." Without attendance the rule is eating pattern alone, which is weaker and more prone to false positives. State it accurately in the UI, and treat attendance as something worth asking the district for — it would materially improve that signal.
 
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled

@@ -4,6 +4,7 @@ import type { AppSession } from "@/server/auth/types";
 import { deriveBalanceCents, LedgerError } from "@/server/ledger/ledger";
 import { lockAccountsForUpdate, assertCanDebit } from "@/server/ledger/balanceGuard";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
 
 /**
  * A-la-carte sale. Unlike a meal, this CAN be denied when the balance is short.
@@ -99,7 +100,8 @@ export async function recordItemSale(input: {
   }
 
   // Notify the guardian(s) if this charge just crossed the low-balance line.
-  await notifyIfLowBalanceCrossed(student.id, price);
+  const threshold = await resolveLowBalanceThresholdCents(student.districtId, student.schoolId);
+  await notifyIfLowBalanceCrossed(student.id, price, threshold);
 
   return { status: "recorded", studentName: `${student.firstName} ${student.lastName}` };
 }

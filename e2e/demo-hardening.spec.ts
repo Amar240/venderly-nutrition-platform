@@ -72,9 +72,19 @@ test("guardian phone flow has banner, skip link, accessible states, deposit, and
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
   await expectTargetsAtLeast(page, "a,button,input,select", 44);
+  const ellaCard = page.getByLabel("Ella Whitfield", { exact: true });
+  const marcusCard = page.getByLabel("Marcus Okafor", { exact: true });
+  await expect(ellaCard.getByText("Breakfast recorded today")).toBeVisible();
+  await expect(ellaCard.getByText("Lunch recorded today")).toBeVisible();
+  await expect(marcusCard.getByText("Breakfast and lunch are free")).toBeVisible();
+  await expect(marcusCard.getByText("$9.00 for snacks and extras")).toBeVisible();
+  await expect(marcusCard.getByText("No lunch recorded for Marcus on 3 of the last 5 school days.")).toBeVisible();
+  await expect(marcusCard.getByText("Lunch is free every day")).toBeVisible();
+  await expect(marcusCard.getByText("Marcus will still be served if it runs out.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Add money" }).click();
-  await page.getByLabel("Marcus Okafor").fill("10.00");
+  await page.getByRole("link", { name: "Add money", exact: true }).click();
+  await page.waitForURL(/\/guardian\/deposit/);
+  await page.getByLabel("Marcus Okafor", { exact: true }).fill("10.00");
   await page.getByRole("button", { name: "Continue to checkout" }).click();
   await expect(page.getByRole("button", { name: /Pay \$10\.00/ })).toBeVisible();
 
@@ -95,9 +105,17 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
   await expectAxeClean(page);
   await expectTargetsAtLeast(page, "a,button,input,select", 48);
 
-  await page.getByLabel("Student number").fill("100001");
+  await page.getByLabel("Student number").fill("100003");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Meal recorded");
+
+  await page.getByLabel("Student number").fill("100001");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Already had lunch");
+
+  await page.getByLabel("Student number").fill("100002");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Not at this school");
 });
 
 test("admin laptop flow covers search, correction, export error surface, and import", async ({ page }) => {

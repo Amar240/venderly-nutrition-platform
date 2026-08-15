@@ -31,14 +31,19 @@ One card per child, in this order:
 
 1. Did they eat today
 2. How many meals the balance covers, and what a meal costs
-3. Any warning
-4. Actions
+3. Money
+4. Any warning
+5. Actions
 
 **Balance is expressed in meals first, money second.** "About 21 more lunches" then "$8.40 · lunch costs $0.40". Dollars alone are meaningless across tiers — $10 is a fortnight for a reduced-price child and three days for a paid one. Meals remaining is the number a parent is actually computing in their head.
 
-**Low balance is a meals threshold, not a dollar threshold.** Default: fewer than 5 meals remaining. A single dollar threshold would fire constantly for paid families and never for reduced ones.
+**Low balance is a meals threshold when meals cost money, a cents threshold when they don't.** Default: fewer than 5 meals remaining. Decided per student by their own meal price, so a CEP district and a free-tier student in a charging district both fall back to the à-la-carte cents threshold. See D-4.
 
-**The reassurance line is mandatory on any low or negative state**: "He'll still be served if it runs out." Federal rules and most state policies mean a child is fed regardless. Saying it prevents the panic that makes parents call the school, and it is the single most humane sentence on the screen.
+**Did-they-eat wording is time-aware and never claims absence.** "No lunch yet" before the school's configured service end time, "No lunch recorded" after. We have no attendance source, so the platform never says why a meal is missing — see D-12. A server-side resolver returns `ate` / `not_yet` / `not_recorded`; the UI renders the status and never compares times.
+
+**The reassurance line is mandatory on any low or negative state**: "{Name} will still be served if it runs out." Federal rules and most state policies mean a child is fed regardless. Saying it prevents the panic that makes parents call the school, and it is the single most humane sentence on the screen.
+
+Use the child's name, never a pronoun — we don't store gender, so we can't know one (see spec 6 §6.3).
 
 Under CEP the same card renders with meals free and only à-la-carte money shown — no separate design, no separate code path.
 

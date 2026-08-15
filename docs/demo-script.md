@@ -26,12 +26,16 @@ Say: "We start where the line starts: the cafeteria serving screen. The POS does
 Choose `Lunch`.
 
 Run A:
-- Student number: `100001`
-- Expected student: Ella Whitfield
-
-Run B, without another reset:
 - Student number: `100003`
 - Expected student: Nora Bell
+
+Run B, without another reset:
+- Student number: `100004`
+- Expected student: Isaac Bell
+
+Optional checks:
+- `100001` returns "Already had lunch" because Ella is seeded with lunch today.
+- `100002` returns "Not at this school" because Marcus is at Woodbridge Middle and the cashier is scoped to Phillis Wheatley.
 
 Say: "The result is operational only: recorded, duplicate, not active here, or an error. It never exposes why a meal is free or what category the student is in."
 
@@ -43,7 +47,8 @@ Say: "Now the household view. Dana Whitfield sees two linked children with diffe
 
 Point out:
 - Ella Whitfield, student `100001`, starting balance `$42.00`
-- Marcus Okafor, student `100002`, starting balance `$9.00`, visibly low against the `$10.00` threshold
+- Marcus Okafor, student `100002`, starting balance `$9.00` for snacks and extras
+- Marcus has no lunch recorded on 3 of the last 5 school days, and the card says lunch is free every day
 
 Choose `Add money`.
 

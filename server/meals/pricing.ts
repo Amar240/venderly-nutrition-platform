@@ -9,10 +9,10 @@ import {
 } from "@prisma/client";
 
 /**
- * Meal pricing — the ONLY place a student's price tier is read or written
- * (rule 5 confidentiality; per the StudentPricing decision). The POS receives a
- * resolved price and an operational result, never a tier. Nothing here may be
- * imported by guardian or POS query/response code, and the tier is never logged.
+ * Meal pricing. StudentPricing has exactly two authorised readers: this meal
+ * pricing logic and the guardian household read model scoped through a verified
+ * relationship. The POS receives a resolved price and an operational result,
+ * never a tier. The tier is never logged.
  */
 
 /**

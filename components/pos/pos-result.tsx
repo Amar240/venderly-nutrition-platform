@@ -21,8 +21,8 @@ interface PosResultProps {
 
 const COPY: Record<PosStatus, { title: string; hint?: string }> = {
   recorded: { title: "Meal recorded" },
-  duplicate: { title: "Already recorded", hint: "This meal is already recorded for today." },
-  not_active_at_school: { title: "Not active at this school", hint: "Check the student number." },
+  duplicate: { title: "Already had lunch", hint: "This meal is already recorded for today." },
+  not_active_at_school: { title: "Not at this school", hint: "Check the student number." },
   insufficient_balance: { title: "Not enough balance", hint: "This purchase can’t be completed." },
   rate_limited: { title: "Too many attempts", hint: "Please wait a moment and try again." },
   error: { title: "Something went wrong", hint: "Please try again." },
