@@ -7,6 +7,7 @@ import { getLedgerHistory } from "@/server/ledger/ledger";
 import { classifyBalance, lowBalanceThresholdForChild, type BalanceStatus } from "./balance";
 import { computeMealPriceCents } from "@/server/meals/pricing";
 import { missingLunchCountForStudent, recentCompletedOperatingDays } from "@/server/meals/operatingDays";
+import { SERVED_ONLY } from "@/server/meals/mealCounts";
 import { districtToday, isAfterServiceEnd } from "@/server/time/district";
 import { formatCents } from "@/lib/utils";
 import type { LedgerEntry, MealType, PriceTier } from "@prisma/client";
@@ -127,7 +128,7 @@ async function buildHouseholdChild(input: {
       studentId: student.id,
       serviceDate: today,
       mealType: { in: servedMealTypes },
-      overrideSeq: 0,
+      ...SERVED_ONLY,
     },
     select: { mealType: true },
   });

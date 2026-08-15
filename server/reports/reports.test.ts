@@ -33,6 +33,7 @@ afterAll(async () => {
     await withLedgerAdmin(prisma, (tx) => tx.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } }));
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
+    await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.pricingConfig.deleteMany({ where: { districtId: id } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
@@ -49,6 +50,7 @@ interface Fixture {
   districtId: string;
   schoolAId: string;
   schoolBId: string;
+  mealStudentId: string;
   superAdmin: AppSession;
   adminA: AppSession;
   guardian: AppSession;
@@ -80,14 +82,35 @@ async function fresh(): Promise<Fixture> {
 
   // Meals for A1 today: one served (seq 0) + one override (seq 1).
   const today = utcToday();
-  await prisma.mealEvent.create({ data: { studentId: a1.id, serviceDate: today, mealType: "LUNCH", priceCents: 0, overrideSeq: 0 } });
-  await prisma.mealEvent.create({ data: { studentId: a1.id, serviceDate: today, mealType: "LUNCH", priceCents: 0, overrideSeq: 1, overrideReason: "second meal authorized" } });
+  const cashier = await prisma.user.create({
+    data: {
+      email: `cashier-${crypto.randomUUID()}@test.invalid`,
+      passwordHash: "test",
+      firstName: "Casey",
+      lastName: "Cashier",
+      role: "CASHIER",
+      districtId: district.id,
+    },
+  });
+  await prisma.mealEvent.create({ data: { studentId: a1.id, schoolId: schoolA.id, serviceDate: today, mealType: "LUNCH", priceCents: 0, overrideSeq: 0 } });
+  await prisma.mealEvent.create({ data: { studentId: a1.id, schoolId: schoolA.id, serviceDate: today, mealType: "LUNCH", priceCents: 0, overrideSeq: 1, overrideReason: "second meal authorized" } });
+  await prisma.mealEvent.create({
+    data: {
+      studentId: a1.id,
+      schoolId: schoolA.id,
+      serviceDate: today,
+      mealType: "BREAKFAST",
+      priceCents: 0,
+      reversedAt: new Date(),
+      reversedByUserId: cashier.id,
+    },
+  });
 
   const staff = (role: "SUPER_ADMIN" | "DISTRICT_ADMIN", schoolIds: string[]): AppSession =>
     ({ principalType: "staff", userId: `u-${role}-${crypto.randomUUID()}`, role, districtId: district.id, schoolIds });
 
   return {
-    districtId: district.id, schoolAId: schoolA.id, schoolBId: schoolB.id,
+    districtId: district.id, schoolAId: schoolA.id, schoolBId: schoolB.id, mealStudentId: a1.id,
     superAdmin: staff("SUPER_ADMIN", []),
     adminA: staff("DISTRICT_ADMIN", [schoolA.id]),
     guardian: { principalType: "guardian", guardianId: `g-${crypto.randomUUID()}`, role: "GUARDIAN" },
@@ -104,6 +127,7 @@ describe.skipIf(!dbUp)("daily meal counts (D-10)", () => {
     expect(alphaLunch?.overrides).toBe(1);
     // The two are distinct fields — nothing sums them into one number.
     expect(alphaLunch!.served + alphaLunch!.overrides).toBe(2);
+    expect(rows.find((r) => r.schoolName === "Alpha" && r.mealType === "BREAKFAST")).toBeUndefined();
   });
 
   it("is scoped: a district admin for Alpha never sees Beta rows", async () => {
@@ -111,6 +135,15 @@ describe.skipIf(!dbUp)("daily meal counts (D-10)", () => {
     const today = utcToday();
     const rows = await dailyMealCounts(f.adminA, { from: today, to: today });
     expect(rows.every((r) => r.schoolName === "Alpha")).toBe(true);
+  });
+
+  it("attributes historical meals to the serving school after a student transfers", async () => {
+    const f = await fresh();
+    await prisma.student.update({ where: { id: f.mealStudentId }, data: { schoolId: f.schoolBId } });
+    const today = utcToday();
+    const rows = await dailyMealCounts(f.superAdmin, { from: today, to: today });
+    expect(rows.find((row) => row.schoolName === "Alpha" && row.mealType === "LUNCH")?.served).toBe(1);
+    expect(rows.find((row) => row.schoolName === "Beta" && row.mealType === "LUNCH")).toBeUndefined();
   });
 });
 

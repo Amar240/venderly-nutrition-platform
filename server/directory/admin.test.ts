@@ -36,6 +36,7 @@ afterAll(async () => {
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.guardianStudent.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
+    await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.pricingConfig.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
@@ -89,12 +90,24 @@ async function fresh(): Promise<Fixture> {
   const staff = (
     role: "SUPER_ADMIN" | "DISTRICT_ADMIN" | "SCHOOL_STAFF" | "CASHIER",
     schoolIds: string[],
+    userId = `u-${role}-${crypto.randomUUID()}`,
   ): AppSession => ({
     principalType: "staff",
-    userId: `u-${role}-${crypto.randomUUID()}`,
+    userId,
     role,
     districtId: district.id,
     schoolIds,
+  });
+  const cashierUser = await prisma.user.create({
+    data: {
+      email: `cashier-${crypto.randomUUID()}@test.invalid`,
+      passwordHash: "test",
+      firstName: "Casey",
+      lastName: "Cashier",
+      role: "CASHIER",
+      districtId: district.id,
+      schools: { create: { schoolId: schoolA.id } },
+    },
   });
 
   return {
@@ -102,7 +115,7 @@ async function fresh(): Promise<Fixture> {
     superAdmin: staff("SUPER_ADMIN", []),
     districtAdminA: staff("DISTRICT_ADMIN", [schoolA.id]),
     schoolStaffA: staff("SCHOOL_STAFF", [schoolA.id]),
-    cashierA: staff("CASHIER", [schoolA.id]),
+    cashierA: staff("CASHIER", [schoolA.id], cashierUser.id),
     guardian: { principalType: "guardian", guardianId: guardian.id, role: "GUARDIAN" },
   };
 }

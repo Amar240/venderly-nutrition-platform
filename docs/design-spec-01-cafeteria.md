@@ -27,6 +27,13 @@ Implementation rules for undo:
 - It is limited to the last entry, within 90 seconds, by the same cashier, at the same school.
 - After 90 seconds it disappears and the correction becomes an administrator's job.
 - The audit entry records cashier, student, meal, and time.
+- A reversal sets `reversedAt` and `reversedByUserId` on the retained event and
+  appends its audit evidence in the same transaction. Live uniqueness uses a
+  partial index, so entering the student again creates a normal event rather
+  than an override.
+- Reimbursable totals use only live normal events: `overrideSeq = 0` and
+  `reversedAt IS NULL`. Reversed events never enter daily totals or claim
+  figures; administrator overrides remain a separate count under D-10.
 
 **Keypad**: minimum 62px targets. Physical keyboard works identically — digits type, Enter submits, Escape clears. Never require the mouse.
 

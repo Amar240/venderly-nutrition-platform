@@ -21,6 +21,7 @@ afterAll(async () => {
     await prisma.studentPricing.deleteMany({ where: { student: { districtId: id } } });
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
+    await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.pricingConfig.deleteMany({ where: { districtId: id } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
@@ -116,7 +117,7 @@ describe.skipIf(!dbUp)("guardian household meal read model", () => {
     const f = await freshHousehold({ cep: false, tier: "PAID" });
     const today = dateOnlyUtc(2026, 8, 15);
     await prisma.mealEvent.create({
-      data: { studentId: f.student.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+      data: { studentId: f.student.id, schoolId: f.school.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
     });
     const beforeLunch = await getHousehold(
       { principalType: "guardian", guardianId: f.guardian.id, role: "GUARDIAN" },
@@ -144,18 +145,49 @@ describe.skipIf(!dbUp)("guardian household meal read model", () => {
     expect(unservedBreakfast[0]!.servedMealTypes).toEqual(["LUNCH"]);
   });
 
+  it("does not treat a retained reversed event as a meal eaten today", async () => {
+    const f = await freshHousehold({ cep: true });
+    const today = dateOnlyUtc(2026, 8, 15);
+    const cashier = await prisma.user.create({
+      data: {
+        email: `cashier-${crypto.randomUUID()}@test.invalid`,
+        passwordHash: "test",
+        firstName: "Casey",
+        lastName: "Cashier",
+        role: "CASHIER",
+        districtId: f.district.id,
+      },
+    });
+    await prisma.mealEvent.create({
+      data: {
+        studentId: f.student.id,
+        schoolId: f.school.id,
+        serviceDate: today,
+        mealType: "LUNCH",
+        priceCents: 0,
+        reversedAt: new Date("2026-08-15T17:01:00.000Z"),
+        reversedByUserId: cashier.id,
+      },
+    });
+    const rows = await getHousehold(
+      { principalType: "guardian", guardianId: f.guardian.id, role: "GUARDIAN" },
+      new Date("2026-08-15T17:30:00.000Z"),
+    );
+    expect(rows[0]!.todayMeals.find((meal) => meal.mealType === "LUNCH")?.label).toBe("No lunch recorded");
+  });
+
   it("shows the exact three-of-five operating-day lunch pattern", async () => {
     const f = await freshHousehold({ cep: true, tier: "PAID", balance: 900 });
     const today = dateOnlyUtc(2026, 8, 15);
     const days = [1, 2, 3, 4, 5].map((d) => dateOnlyUtc(2026, 8, 15 - d));
     await prisma.mealEvent.createMany({
       data: days.flatMap((serviceDate, index) => [
-        { studentId: f.student.id, serviceDate, mealType: "BREAKFAST" as const, priceCents: 0 },
-        ...(index < 2 ? [{ studentId: f.student.id, serviceDate, mealType: "LUNCH" as const, priceCents: 0 }] : []),
+        { studentId: f.student.id, schoolId: f.school.id, serviceDate, mealType: "BREAKFAST" as const, priceCents: 0 },
+        ...(index < 2 ? [{ studentId: f.student.id, schoolId: f.school.id, serviceDate, mealType: "LUNCH" as const, priceCents: 0 }] : []),
       ]),
     });
     await prisma.mealEvent.create({
-      data: { studentId: f.student.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+      data: { studentId: f.student.id, schoolId: f.school.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
     });
 
     const rows = await getHousehold(

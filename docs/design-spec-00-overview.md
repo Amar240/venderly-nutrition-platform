@@ -85,7 +85,7 @@ Carried forward from `decisions.md` and the PRD. None of this is negotiable in t
 - Money is integer cents; the ledger is append-only; corrections are new offsetting entries.
 - Authorisation is enforced in `server/`, never in the UI.
 - The pricing tier has exactly two authorised readers: meal pricing logic, and the guardian's own household query. Never a cashier, never an export, never a log.
-- One meal event per student, date, and meal type; overrides are separate rows, counted on their own line.
+- One live normal meal event per student, date, and meal type; cashier-reversed rows remain as history but never count, and overrides are separate rows counted on their own line.
 - The importer drops date of birth, race, and gender at parse time.
 - Every sensitive action is audited with actor, reason, and before/after.
 - The prototype banner appears on every surface, printed and exported output included.

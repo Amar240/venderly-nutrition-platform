@@ -108,6 +108,18 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
   await page.getByLabel("Student number").fill("100003");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Meal recorded");
+  const undo = page.getByRole("button", { name: "Undo last student" });
+  await expect(undo).toBeVisible();
+  await undo.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Lunch entry undone for Nora Bell.");
+  await expect(undo).toHaveCount(0);
+  await expect(page.getByLabel("Student number")).toBeFocused({ timeout: 4_000 });
+
+  // A reversed normal entry does not block an ordinary re-entry.
+  await page.getByLabel("Student number").fill("100003");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("Meal recorded");
 
   await page.getByLabel("Student number").fill("100001");
   await page.keyboard.press("Enter");
@@ -116,11 +128,15 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
   await page.getByLabel("Student number").fill("100002");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Not at this school");
+  await expect(page.getByRole("button", { name: "Undo last student" })).toBeVisible();
 });
 
 test("admin laptop flow covers search, correction, export error surface, and import", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, "superadmin@woodbridge.demo", /\/admin/, await staffTotp("SUPER_ADMIN"));
+  await page.goto("/admin/students?q=100003");
+  await page.getByRole("link", { name: "100003" }).click();
+  await expect(page.getByText(/Undone by Casey Nguyen at/)).toBeVisible();
   await page.goto("/admin/students?q=100001");
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);

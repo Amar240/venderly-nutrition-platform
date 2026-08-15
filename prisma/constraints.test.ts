@@ -89,11 +89,11 @@ describe.skipIf(!dbUp)("schema constraints", () => {
     });
     const serviceDate = new Date("2026-08-12");
     await prisma.mealEvent.create({
-      data: { studentId: student.id, serviceDate, mealType: "LUNCH", priceCents: 0 },
+      data: { studentId: student.id, schoolId: school.id, serviceDate, mealType: "LUNCH", priceCents: 0 },
     });
     await expect(
       prisma.mealEvent.create({
-        data: { studentId: student.id, serviceDate, mealType: "LUNCH", priceCents: 0 },
+        data: { studentId: student.id, schoolId: school.id, serviceDate, mealType: "LUNCH", priceCents: 0 },
       }),
     ).rejects.toMatchObject({ code: "P2002" });
   });

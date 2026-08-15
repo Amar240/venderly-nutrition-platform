@@ -27,7 +27,7 @@ export async function dailyMealCounts(
 
   for (const school of scope.schools) {
     const base = {
-      student: { schoolId: school.id },
+      schoolId: school.id,
       serviceDate: { gte: range.from, lte: range.to },
     };
     const [served, overrides] = await Promise.all([

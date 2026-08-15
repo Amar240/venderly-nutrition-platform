@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/client";
+import { SERVED_ONLY } from "./mealCounts";
 
 export async function recentCompletedOperatingDays(params: {
   schoolId: string;
@@ -8,9 +9,9 @@ export async function recentCompletedOperatingDays(params: {
   const rows = await prisma.mealEvent.groupBy({
     by: ["serviceDate"],
     where: {
-      student: { schoolId: params.schoolId },
+      schoolId: params.schoolId,
       serviceDate: { lt: params.beforeDate },
-      overrideSeq: 0,
+      ...SERVED_ONLY,
     },
     orderBy: { serviceDate: "desc" },
     take: params.take,
@@ -27,14 +28,13 @@ export async function missingLunchCountForStudent(params: {
   const lunches = await prisma.mealEvent.findMany({
     where: {
       studentId: params.studentId,
-      student: { schoolId: params.schoolId },
+      schoolId: params.schoolId,
       serviceDate: { in: params.dates },
       mealType: "LUNCH",
-      overrideSeq: 0,
+      ...SERVED_ONLY,
     },
     select: { serviceDate: true },
   });
   const eaten = new Set(lunches.map((meal) => meal.serviceDate.toISOString().slice(0, 10)));
   return params.dates.filter((date) => !eaten.has(date.toISOString().slice(0, 10))).length;
 }
-

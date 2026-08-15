@@ -7,7 +7,7 @@
 //      NEW offsetting entries linked via `correctsEntryId`.
 //   3. Transfers share one `transferRef`.
 //   4. `idempotencyKey` is unique (nullable — Postgres allows multiple NULLs).
-//   6. Meal uniqueness: one event per student + service date + meal type.
+//   6. Meal uniqueness: one live normal event per student/date/meal type.
 //   9. Student holds ONLY minimal fields — no race/ethnicity/gender/birthdate.
 
 generator client {
@@ -133,6 +133,7 @@ model School {
   items          Item[]
   pricingConfigs PricingConfig[]
   notifications  Notification[]
+  mealEvents     MealEvent[]
 
   @@unique([districtId, code])
 }
@@ -235,8 +236,10 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  district District     @relation(fields: [districtId], references: [id])
-  schools  UserSchool[]
+  district           District     @relation(fields: [districtId], references: [id])
+  schools            UserSchool[]
+  recordedMealEvents MealEvent[]  @relation("MealRecordedBy")
+  reversedMealEvents MealEvent[]  @relation("MealReversedBy")
 }
 
 model UserSchool {
@@ -294,23 +297,37 @@ model LedgerEntry {
 // ---------------------------------------------------------------------------
 
 model MealEvent {
-  id             String   @id @default(cuid())
-  studentId      String
-  serviceDate    DateTime @db.Date
-  mealType       MealType
-  priceCents     Int
-  // 0 = the normal POS serving (one per student/date/mealType — the duplicate
+  id               String    @id @default(cuid())
+  studentId        String
+  schoolId         String
+  serviceDate      DateTime  @db.Date
+  mealType         MealType
+  priceCents       Int
+  // 0 = the normal POS serving (one live row per student/date/mealType — the duplicate
   // guard). Only an admin duplicate-meal override creates seq > 0, and only with
   // an overrideReason + AuditLog. The POS can NEVER produce seq > 0 (rule 6).
-  overrideSeq    Int      @default(0)
-  ledgerEntryId  String?  @unique
-  overrideReason String?
-  createdAt      DateTime @default(now())
+  overrideSeq      Int       @default(0)
+  recordedByUserId String?
+  recordingBatchId String?
+  ledgerEntryId    String?   @unique
+  overrideReason   String?
+  reversedAt       DateTime?
+  reversedByUserId String?
+  createdAt        DateTime  @default(now())
 
-  student     Student      @relation(fields: [studentId], references: [id])
-  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
+  student        Student      @relation(fields: [studentId], references: [id])
+  school         School       @relation(fields: [schoolId], references: [id])
+  recordedByUser User?        @relation("MealRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  reversedByUser User?        @relation("MealReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  ledgerEntry    LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
 
-  @@unique([studentId, serviceDate, mealType, overrideSeq])
+  // Live-event uniqueness is enforced by a partial PostgreSQL index because a
+  // retained, reversed row must not block an ordinary re-entry. Prisma cannot
+  // express the WHERE clause, so the migration owns that index.
+  @@index([studentId, serviceDate, mealType, overrideSeq])
+  @@index([schoolId, serviceDate, mealType])
+  @@index([recordedByUserId, schoolId, createdAt])
+  @@index([recordingBatchId])
   @@index([serviceDate])
 }
 
@@ -369,22 +386,22 @@ model AuditLog {
 }
 
 model ImportRun {
-  id            String   @id @default(cuid())
-  districtId    String
-  source        String
-  operator      String
-  checksum      String?
-  status        String
-  createdCount  Int      @default(0)
-  updatedCount  Int      @default(0)
-  inactiveCount Int      @default(0)
-  skippedCount  Int      @default(0)
-  failedCount   Int      @default(0)
-  errorsJson    Json?
+  id               String   @id @default(cuid())
+  districtId       String
+  source           String
+  operator         String
+  checksum         String?
+  status           String
+  createdCount     Int      @default(0)
+  updatedCount     Int      @default(0)
+  inactiveCount    Int      @default(0)
+  skippedCount     Int      @default(0)
+  failedCount      Int      @default(0)
+  errorsJson       Json?
   // Records a mass-deactivation confirmation when the safety threshold tripped:
   // { deactivateCount, activeBefore, sharePct, confirmedBy, confirmedAt }.
   confirmationJson Json?
-  createdAt     DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   district District @relation(fields: [districtId], references: [id])
 }

@@ -88,7 +88,9 @@ export interface StudentAdminDetail {
   accountId: string | null;
   balanceCents: number;
   history: LedgerEntry[];
-  mealEvents: MealEvent[];
+  mealEvents: (MealEvent & {
+    reversedByUser: { firstName: string; lastName: string } | null;
+  })[];
   itemSales: (ItemSaleView)[];
   guardians: AdminGuardian[];
   audit: AuditLog[];
@@ -127,7 +129,8 @@ export async function getStudentAdminDetail(
     accountId ? getLedgerHistory(accountId) : Promise.resolve([] as LedgerEntry[]),
     prisma.mealEvent.findMany({
       where: { studentId },
-      orderBy: [{ serviceDate: "desc" }, { overrideSeq: "asc" }],
+      include: { reversedByUser: { select: { firstName: true, lastName: true } } },
+      orderBy: [{ serviceDate: "desc" }, { createdAt: "desc" }, { overrideSeq: "asc" }],
     }),
     prisma.itemSale.findMany({
       where: { studentId },

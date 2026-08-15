@@ -1,6 +1,6 @@
 import { Prisma, type MealType } from "@prisma/client";
 import { prisma } from "@/server/db/client";
-import { requireStaff, canAccessSchool } from "@/server/auth/rbac";
+import { requireRole, canAccessSchool } from "@/server/auth/rbac";
 import type { AppSession } from "@/server/auth/types";
 import { deriveBalanceCents } from "@/server/ledger/ledger";
 import { lockAccountsForUpdate } from "@/server/ledger/balanceGuard";
@@ -21,7 +21,13 @@ import { lowBalanceThresholdForChild } from "@/server/household/balance";
  * number / inactive / wrong-school alike so nothing about a student leaks.
  */
 export type MealResult =
-  | { status: "recorded"; studentName: string; grade: string; schoolName: string }
+  | {
+      status: "recorded";
+      studentName: string;
+      grade: string;
+      schoolName: string;
+      undo: { batchId: string; expiresAt: string };
+    }
   | { status: "duplicate" }
   | { status: "not_active_at_school" };
 
@@ -30,7 +36,8 @@ export async function recordMeal(input: {
   mealType: MealType;
   session: AppSession | null | undefined;
 }): Promise<MealResult> {
-  const staff = requireStaff(input.session);
+  const staff = requireRole(input.session, "CASHIER");
+  if (staff.principalType !== "staff") return { status: "not_active_at_school" };
 
   const student = await prisma.student.findUnique({
     where: {
@@ -61,17 +68,35 @@ export async function recordMeal(input: {
     lowBalanceThresholdCents: config.lowBalanceThresholdCents,
   });
   const serviceDate = await districtToday(student.districtId);
+  const recordingBatchId = crypto.randomUUID();
+  let recordedAt: Date;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // The @@unique(studentId, serviceDate, mealType) is the duplicate guard.
+    recordedAt = await prisma.$transaction(async (tx) => {
+      // Serialize successful entries and undo validation for this cashier.
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${staff.userId} FOR UPDATE`;
+      const previous = await tx.mealEvent.findFirst({
+        where: { recordedByUserId: staff.userId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { createdAt: true },
+      });
+      const wallClock = new Date();
+      const recordedAt = previous && wallClock.getTime() <= previous.createdAt.getTime()
+        ? new Date(previous.createdAt.getTime() + 1)
+        : wallClock;
+      // The partial live-event unique index is the duplicate guard. A retained
+      // reversed row does not block a later ordinary recording.
       const mealEvent = await tx.mealEvent.create({
         data: {
           studentId: student.id,
+          schoolId: student.schoolId,
           serviceDate,
           mealType: input.mealType,
           priceCents,
+          recordedByUserId: staff.userId,
+          recordingBatchId,
           ledgerEntryId: null,
+          createdAt: recordedAt,
         },
       });
       // Meals are recorded, never denied (only a-la-carte is). Charge only when
@@ -92,6 +117,7 @@ export async function recordMeal(input: {
         await tx.account.update({ where: { id: student.account.id }, data: { balanceCents: balance } });
         await tx.mealEvent.update({ where: { id: mealEvent.id }, data: { ledgerEntryId: debit.id } });
       }
+      return recordedAt;
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -110,5 +136,9 @@ export async function recordMeal(input: {
     studentName: `${student.firstName} ${student.lastName}`,
     grade: student.grade,
     schoolName: student.school.name,
+    undo: {
+      batchId: recordingBatchId,
+      expiresAt: new Date(recordedAt.getTime() + 90_000).toISOString(),
+    },
   };
 }

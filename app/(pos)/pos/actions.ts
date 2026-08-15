@@ -6,6 +6,7 @@ import { recordMeal, type MealResult } from "@/server/meals/recordMeal";
 import { recordItemSale, type ItemResult, ItemSaleError } from "@/server/meals/recordItemSale";
 import { posRateLimited } from "@/server/pos/rateLimit";
 import { AuthError } from "@/server/auth/errors";
+import { undoLastMealEntry, type UndoMealResult } from "@/server/meals/undoMealEntry";
 
 /**
  * POS server actions. They resolve the cashier session server-side (never trust
@@ -14,6 +15,7 @@ import { AuthError } from "@/server/auth/errors";
  */
 export type MealActionResult = MealResult | { status: "rate_limited" } | { status: "error" };
 export type ItemActionResult = ItemResult | { status: "rate_limited" } | { status: "error" };
+export type UndoMealActionResult = UndoMealResult | { status: "error" };
 
 export async function recordMealAction(
   mealType: MealType,
@@ -27,6 +29,17 @@ export async function recordMealAction(
   } catch (err) {
     if (err instanceof AuthError) return { status: "error" };
     throw err;
+  }
+}
+
+export async function undoMealAction(batchId: string): Promise<UndoMealActionResult> {
+  const session = await getAppSession();
+  if (!session || session.principalType !== "staff") return { status: "unavailable" };
+  try {
+    return await undoLastMealEntry({ batchId, session });
+  } catch (err) {
+    if (err instanceof AuthError) return { status: "unavailable" };
+    return { status: "error" };
   }
 }
 

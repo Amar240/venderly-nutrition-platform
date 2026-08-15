@@ -21,7 +21,7 @@ This file exists so any coding agent — Codex, Claude Code, or another — work
 - Money is integer cents. The ledger is append-only — no UPDATE, no DELETE, ever. Corrections are new offsetting entries linked to the original.
 - Authorisation is enforced in `server/`, never in the UI. Guardian queries always join through the verified guardian-student relationship.
 - The pricing tier has exactly two authorised readers: meal pricing logic in `server/meals`, and the guardian's own household query. It must never appear in a POS payload, page source, client bundle, log line, export, or report.
-- One meal event per student, service date, and meal type. Admin overrides are separate rows and are never summed into headline meal counts.
+- One live normal meal event per student, service date, and meal type. Cashier-reversed rows remain as history but never count; admin overrides are separate rows and are never summed into headline meal counts.
 - The roster importer drops date of birth, race, and gender at parse time. They must never reach the database.
 - Every sensitive action is audited with actor, reason, and before/after context.
 - Nothing on screen is named after how the system was built. See `docs/design-spec-06-language-and-accessibility.md`.

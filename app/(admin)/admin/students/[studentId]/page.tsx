@@ -24,6 +24,16 @@ function fmtDate(d: Date) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function fmtDateTime(d: Date) {
+  return new Date(d).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default async function StudentDetailPage({ params }: { params: { studentId: string } }) {
   const session = await getAppSession();
   let detail;
@@ -117,6 +127,16 @@ export default async function StudentDetailPage({ params }: { params: { studentI
                       </span>
                     )}
                     {m.overrideReason && <span className="block text-xs text-ink-muted">{m.overrideReason}</span>}
+                    <span className="block text-xs text-ink-muted">
+                      Recorded {fmtDateTime(m.createdAt)}
+                    </span>
+                    {m.reversedAt && (
+                      <span className="block text-xs text-ink-muted">
+                        Undone by {m.reversedByUser
+                          ? `${m.reversedByUser.firstName} ${m.reversedByUser.lastName}`
+                          : "cashier"} at {fmtDateTime(m.reversedAt)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

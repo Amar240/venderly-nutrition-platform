@@ -51,7 +51,7 @@ export async function districtDashboard(
 
   const rows: DashboardSchoolRow[] = [];
   for (const school of scope.schools) {
-    const mealWhere = { student: { schoolId: school.id }, serviceDate: { gte: from, lt: to } };
+    const mealWhere = { schoolId: school.id, serviceDate: { gte: from, lt: to } };
     const [mealsServed, mealOverrides, ledgerByType, threshold] = await Promise.all([
       prisma.mealEvent.count({ where: { ...mealWhere, ...SERVED_ONLY } }),
       prisma.mealEvent.count({ where: { ...mealWhere, ...OVERRIDES_ONLY } }),

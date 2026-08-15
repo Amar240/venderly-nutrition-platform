@@ -94,6 +94,14 @@ Binding constraints:
 - `seq > 0` requires a non-empty `overrideReason` and writes an AuditLog entry with actor, student, service date, meal type, and reason.
 - **Meal count reports must never silently sum overrides.** Report `seq = 0` as the headline count and overrides as a separate line. A student normally gets one reimbursable meal per day; if a district ever authorizes these counts as an official source, a figure that quietly includes overrides would be a compliance problem. Test that the count query excludes `seq > 0`.
 
+**Amendment (Stage A item 3):** cashier undo retains the normal `MealEvent` and
+sets `reversedAt` plus `reversedByUserId`. Live uniqueness is enforced by a
+partial index over `(studentId, serviceDate, mealType, overrideSeq)` where
+`reversedAt IS NULL`. A later valid entry is therefore another ordinary
+`overrideSeq = 0` event, never an administrator override. Every operational and
+claim-facing count filters both `overrideSeq = 0` and `reversedAt IS NULL`;
+reversed rows remain visible historical evidence and never count.
+
 ## D-12 · We never claim a child was absent
 **Decided:** stage A · **Status:** settled
 

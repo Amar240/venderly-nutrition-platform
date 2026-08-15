@@ -1,6 +1,6 @@
 import type { MealType, MealEvent } from "@prisma/client";
 import { prisma } from "@/server/db/client";
-import { requireRole } from "@/server/auth/rbac";
+import { canAccessSchool, requireRole } from "@/server/auth/rbac";
 import { AuthError } from "@/server/auth/errors";
 import type { AppSession } from "@/server/auth/types";
 import { writeAudit } from "@/server/audit/log";
@@ -35,9 +35,26 @@ export async function recordMealOverride(input: {
 
   const serviceDate = input.serviceDate ?? await districtToday(staff.districtId);
 
+  const student = await prisma.student.findUnique({
+    where: { id: input.studentId },
+    select: { districtId: true, schoolId: true },
+  });
+  if (
+    !student ||
+    student.districtId !== staff.districtId ||
+    !canAccessSchool(staff, student.schoolId)
+  ) {
+    throw new AuthError("FORBIDDEN_SCOPE");
+  }
+
   // There must already be a serving to override; the next seq is max + 1 (≥ 1).
   const agg = await prisma.mealEvent.aggregate({
-    where: { studentId: input.studentId, serviceDate, mealType: input.mealType },
+    where: {
+      studentId: input.studentId,
+      serviceDate,
+      mealType: input.mealType,
+      reversedAt: null,
+    },
     _max: { overrideSeq: true },
   });
   if (agg._max.overrideSeq === null) {
@@ -48,6 +65,7 @@ export async function recordMealOverride(input: {
   const event = await prisma.mealEvent.create({
     data: {
       studentId: input.studentId,
+      schoolId: student.schoolId,
       serviceDate,
       mealType: input.mealType,
       priceCents: 0,

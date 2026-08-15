@@ -353,16 +353,16 @@ async function main() {
   const today = districtDateOnly();
   await prisma.mealEvent.createMany({
     data: [
-      { studentId: demoChildA.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
-      { studentId: demoChildA.id, serviceDate: today, mealType: "LUNCH", priceCents: 0 },
-      { studentId: demoChildB.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+      { studentId: demoChildA.id, schoolId: wheatley.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
+      { studentId: demoChildA.id, schoolId: wheatley.id, serviceDate: today, mealType: "LUNCH", priceCents: 0 },
+      { studentId: demoChildB.id, schoolId: middle.id, serviceDate: today, mealType: "BREAKFAST", priceCents: 0 },
     ],
   });
   const priorOperatingDays = Array.from({ length: 5 }, (_, index) => addDays(today, -(index + 1)));
   await prisma.mealEvent.createMany({
     data: priorOperatingDays.flatMap((serviceDate, index) => [
-      { studentId: demoChildB.id, serviceDate, mealType: "BREAKFAST" as const, priceCents: 0 },
-      ...(index < 2 ? [{ studentId: demoChildB.id, serviceDate, mealType: "LUNCH" as const, priceCents: 0 }] : []),
+      { studentId: demoChildB.id, schoolId: middle.id, serviceDate, mealType: "BREAKFAST" as const, priceCents: 0 },
+      ...(index < 2 ? [{ studentId: demoChildB.id, schoolId: middle.id, serviceDate, mealType: "LUNCH" as const, priceCents: 0 }] : []),
     ]),
   });
 
