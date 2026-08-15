@@ -5,6 +5,7 @@ import { monthlyDeposits } from "./deposits";
 import { districtDashboard } from "./dashboard";
 import { editCheckCeiling, editCheckReport } from "./editCheck";
 import { listTransactions, transactionsToCsv } from "./transactions";
+import { getMoneyHistoryForAccount } from "@/server/ledger/moneyHistory";
 import { searchAuditLog } from "@/server/audit/query";
 import { withLedgerAdmin } from "@/server/ledger/admin";
 import { AuthError } from "@/server/auth/errors";
@@ -31,8 +32,11 @@ const FNS_FEDERAL_DEFAULT_FACTOR_BPS = 9380;
 afterAll(async () => {
   for (const id of districtIds) {
     await prisma.auditLog.deleteMany({ where: { districtId: id } });
+    await prisma.correctionCase.deleteMany({ where: { student: { districtId: id } } });
+    await prisma.itemSale.deleteMany({ where: { student: { districtId: id } } });
     await prisma.mealEvent.deleteMany({ where: { student: { districtId: id } } });
     await withLedgerAdmin(prisma, (tx) => tx.ledgerEntry.deleteMany({ where: { account: { student: { districtId: id } } } }));
+    await prisma.item.deleteMany({ where: { districtId: id } });
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
     await prisma.user.deleteMany({ where: { districtId: id } });
@@ -53,6 +57,8 @@ interface Fixture {
   schoolAId: string;
   schoolBId: string;
   mealStudentId: string;
+  mealAccountId: string;
+  cashierId: string;
   schoolAStudentIds: string[];
   superAdmin: AppSession;
   adminA: AppSession;
@@ -119,6 +125,8 @@ async function fresh(): Promise<Fixture> {
 
   return {
     districtId: district.id, schoolAId: schoolA.id, schoolBId: schoolB.id, mealStudentId: a1.id,
+    mealAccountId: a1.accountId,
+    cashierId: cashier.id,
     schoolAStudentIds: [a1.id, a2.id, a3.id],
     superAdmin: staff("SUPER_ADMIN", []),
     adminA: staff("DISTRICT_ADMIN", [schoolA.id]),
@@ -334,18 +342,89 @@ describe.skipIf(!dbUp)("transaction export", () => {
 
   it("produces a CSV with a prototype notice, header, escaped cells, and no tier data", async () => {
     const rows = [
-      { createdAt: new Date("2026-08-12T12:00:00Z"), studentNumber: "100001", studentName: "Ella Whitfield", schoolName: "Alpha", type: "DEPOSIT", amountCents: 5000, description: '=Deposit, "simulated"' },
+      {
+        createdAt: new Date("2026-08-12T12:00:00Z"),
+        studentNumber: "100001",
+        studentName: "Ella Whitfield",
+        schoolName: "Alpha",
+        activity: '=Dana Whitfield added $50.00 online, "confirmed"',
+        amountCents: 5000,
+        connection: null,
+        reason: null,
+      },
     ];
     const csv = transactionsToCsv(rows);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(`"Prototype notice","${PROTOTYPE_BANNER_TEXT.replace(/"/g, '""')}"`);
     expect(lines[1]).toBe("");
     expect(lines[2]).toContain("Student number");
-    expect(csv).toContain('"Payment"');
+    expect(lines[2]).toContain("Activity");
     expect(csv).not.toContain('"DEPOSIT"');
-    expect(csv).toContain(`"'=Deposit, ""simulated"""`); // formula guard + quotes escaped
+    expect(csv).toContain(`"'=Dana Whitfield added $50.00 online, ""confirmed"""`); // formula guard + quotes escaped
     expect(csv.toLowerCase()).not.toContain("tier");
     expect(csv.toLowerCase()).not.toContain("eligib");
+  });
+
+  it("uses the same sentence history for screen models and downloads, with linked fixes", async () => {
+    const f = await fresh();
+    const item = await prisma.item.create({
+      data: { districtId: f.districtId, schoolId: f.schoolAId, name: "Cookie", priceCents: 125 },
+    });
+    const original = await prisma.ledgerEntry.create({
+      data: {
+        accountId: f.mealAccountId,
+        type: "ALACARTE_CHARGE",
+        amountCents: -125,
+        description: "Cookie",
+        actorType: "USER",
+        actorId: f.cashierId,
+      },
+    });
+    await prisma.itemSale.create({
+      data: { itemId: item.id, studentId: f.mealStudentId, priceCentsAtSale: 125, ledgerEntryId: original.id },
+    });
+    const refund = await prisma.ledgerEntry.create({
+      data: {
+        accountId: f.mealAccountId,
+        type: "REFUND",
+        amountCents: 125,
+        description: "Money given back: Snack was returned",
+        correctsEntryId: original.id,
+        actorType: "USER",
+        actorId: f.cashierId,
+      },
+    });
+    await prisma.correctionCase.create({
+      data: {
+        situation: "SNACK_RETURNED",
+        status: "COMPLETED",
+        studentId: f.mealStudentId,
+        originalEntryId: original.id,
+        refundEntryId: refund.id,
+        reason: "Snack was returned",
+        actorId: f.cashierId,
+        completedAt: new Date(),
+        completedByUserId: f.cashierId,
+      },
+    });
+
+    const screenHistory = await getMoneyHistoryForAccount(f.mealAccountId, { visibleSchoolIds: [f.schoolAId] });
+    const exportRows = await listTransactions(f.adminA, {});
+    const screenRefund = screenHistory.find((row) => row.id === refund.id)!;
+    const exportRefund = exportRows.find((row) => row.createdAt.getTime() === refund.createdAt.getTime() && row.amountCents === 125)!;
+    const screenOriginal = screenHistory.find((row) => row.id === original.id)!;
+
+    expect(screenRefund.activity).toBe(exportRefund.activity);
+    expect(screenRefund.connection).toBe(exportRefund.connection);
+    expect(screenRefund.activity).toContain('Reason: "Snack was returned"');
+    expect(screenRefund.connection).toContain("Corrects: Cookie");
+    expect(screenOriginal.correctedAbove).toBe(true);
+
+    const csv = transactionsToCsv(exportRows);
+    expect(csv).toContain('"Activity","Amount","Connection","Reason"');
+    expect(csv).toContain('"Snack was returned"');
+    expect(csv).not.toContain("SNACK_RETURNED");
+    expect(csv.toLowerCase()).not.toContain("tier");
   });
 });
 

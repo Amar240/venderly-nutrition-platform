@@ -2,8 +2,9 @@ import { prisma } from "@/server/db/client";
 import { requireStaff, scopeToSchools, canAccessSchool } from "@/server/auth/rbac";
 import { AuthError } from "@/server/auth/errors";
 import type { AppSession } from "@/server/auth/types";
-import { getBalanceCents, getLedgerHistory } from "@/server/ledger/ledger";
-import type { LedgerEntry, MealEvent, AuditLog } from "@prisma/client";
+import { getBalanceCents } from "@/server/ledger/ledger";
+import { getMoneyHistoryForAccount, type MoneyHistoryItem } from "@/server/ledger/moneyHistory";
+import type { MealEvent, AuditLog } from "@prisma/client";
 
 /**
  * Admin student search + detail. Every query is scoped to the session's schools
@@ -87,7 +88,7 @@ export interface StudentAdminDetail {
   enrollmentStatus: string;
   accountId: string | null;
   balanceCents: number;
-  history: LedgerEntry[];
+  history: MoneyHistoryItem[];
   mealEvents: (MealEvent & {
     reversedByUser: { firstName: string; lastName: string } | null;
   })[];
@@ -126,7 +127,11 @@ export async function getStudentAdminDetail(
 
   const [balanceCents, history, mealEvents, itemSales, audit] = await Promise.all([
     accountId ? getBalanceCents(accountId) : Promise.resolve(0),
-    accountId ? getLedgerHistory(accountId) : Promise.resolve([] as LedgerEntry[]),
+    accountId
+      ? getMoneyHistoryForAccount(accountId, {
+          visibleSchoolIds: staff.role === "SUPER_ADMIN" ? undefined : staff.schoolIds,
+        })
+      : Promise.resolve([] as MoneyHistoryItem[]),
     prisma.mealEvent.findMany({
       where: { studentId },
       include: { reversedByUser: { select: { firstName: true, lastName: true } } },

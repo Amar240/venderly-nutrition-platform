@@ -311,6 +311,7 @@ export interface RecordAdjustmentInput {
   amountCents: number; // signed
   reason: string; // the correction reason (mandatory)
   actor: LedgerAdminActor; // role enforced INSIDE this function
+  idempotencyKey?: string;
 }
 
 /**
@@ -330,7 +331,11 @@ export async function recordAdjustment(
     throw new LedgerError("INVALID_AMOUNT", "Adjustment must be a non-zero integer of cents");
   }
 
-  const { entry, accountId } = await db.$transaction(async (tx) => {
+  const attempt = () => db.$transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const existing = await tx.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) return { entry: existing, accountId: existing.accountId };
+    }
     let accountId = input.accountId ?? null;
     let correctsEntryId: string | null = input.originalEntryId ?? null;
     if (input.originalEntryId) {
@@ -347,6 +352,7 @@ export async function recordAdjustment(
         amountCents: input.amountCents,
         description: `Mistake fixed: ${input.reason}`,
         correctsEntryId,
+        idempotencyKey: input.idempotencyKey ?? null,
         actorType: who.actorType,
         actorId: who.actorId,
       },
@@ -354,6 +360,23 @@ export async function recordAdjustment(
     await syncCachedBalance(accountId, tx);
     return { entry, accountId };
   });
+  let result: { entry: LedgerEntry; accountId: string };
+  try {
+    result = await attempt();
+  } catch (err) {
+    if (
+      input.idempotencyKey &&
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      const existing = await db.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) result = { entry: existing, accountId: existing.accountId };
+      else throw err;
+    } else {
+      throw err;
+    }
+  }
+  const { entry, accountId } = result;
 
   await writeAudit({
     actorType: who.actorType,
@@ -377,6 +400,7 @@ export interface RecordRefundInput {
   originalEntryId: string;
   reason: string;
   actor: LedgerAdminActor; // role enforced INSIDE this function
+  idempotencyKey?: string;
 }
 
 /**
@@ -392,7 +416,11 @@ export async function recordRefund(
   if (!input.reason?.trim()) {
     throw new LedgerError("REASON_REQUIRED", "A refund requires a reason");
   }
-  const { entry, accountId } = await db.$transaction(async (tx) => {
+  const attempt = () => db.$transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const existing = await tx.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) return { entry: existing, accountId: existing.accountId };
+    }
     const original = await tx.ledgerEntry.findUnique({ where: { id: input.originalEntryId } });
     if (!original) throw new LedgerError("ENTRY_NOT_FOUND", "Original entry not found");
     const entry = await tx.ledgerEntry.create({
@@ -402,6 +430,7 @@ export async function recordRefund(
         amountCents: -original.amountCents,
         description: `Money given back: ${input.reason}`,
         correctsEntryId: original.id,
+        idempotencyKey: input.idempotencyKey ?? null,
         actorType: who.actorType,
         actorId: who.actorId,
       },
@@ -409,6 +438,23 @@ export async function recordRefund(
     await syncCachedBalance(original.accountId, tx);
     return { entry, accountId: original.accountId };
   });
+  let result: { entry: LedgerEntry; accountId: string };
+  try {
+    result = await attempt();
+  } catch (err) {
+    if (
+      input.idempotencyKey &&
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      const existing = await db.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) result = { entry: existing, accountId: existing.accountId };
+      else throw err;
+    } else {
+      throw err;
+    }
+  }
+  const { entry, accountId } = result;
 
   await writeAudit({
     actorType: who.actorType,

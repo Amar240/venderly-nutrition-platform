@@ -1,15 +1,13 @@
-import { prisma } from "@/server/db/client";
 import { AuthError } from "@/server/auth/errors";
 import { reportScope } from "./scope";
 import { formatCents } from "@/lib/utils";
 import { PROTOTYPE_BANNER_TEXT } from "@/lib/prototype";
-import { moneyActivityLabel } from "@/lib/presentation-labels";
+import { getMoneyHistoryForExport } from "@/server/ledger/moneyHistory";
 import type { AppSession } from "@/server/auth/types";
 
 /**
- * Transaction listing + CSV export. Scoped to the session's schools; a requested
- * school outside scope is rejected. NO pricing tier is queried or emitted — the
- * columns are date, student number, name, school, type, amount, description.
+ * Money-history listing + download. Scoped to the session's schools; a requested
+ * school outside scope is rejected. NO pricing tier is queried or emitted.
  */
 export interface TransactionFilters {
   schoolId?: string;
@@ -22,9 +20,10 @@ export interface TransactionRow {
   studentNumber: string;
   studentName: string;
   schoolName: string;
-  type: string;
+  activity: string;
   amountCents: number;
-  description: string;
+  connection: string | null;
+  reason: string | null;
 }
 
 export async function listTransactions(
@@ -39,38 +38,22 @@ export async function listTransactions(
     schoolIds = [filters.schoolId];
   }
 
-  const entries = await prisma.ledgerEntry.findMany({
-    where: {
-      account: { student: { schoolId: { in: schoolIds } } },
-      ...(filters.from || filters.to
-        ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }
-        : {}),
-    },
-    select: {
-      createdAt: true,
-      type: true,
-      amountCents: true,
-      description: true,
-      account: {
-        select: {
-          student: {
-            select: { studentNumber: true, firstName: true, lastName: true, school: { select: { name: true } } },
-          },
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5000,
-  });
+  const rows = await getMoneyHistoryForExport({
+    account: { student: { schoolId: { in: schoolIds } } },
+    ...(filters.from || filters.to
+      ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }
+      : {}),
+  }, { visibleSchoolIds: schoolIds });
 
-  return entries.map((e) => ({
-    createdAt: e.createdAt,
-    studentNumber: e.account.student.studentNumber,
-    studentName: `${e.account.student.firstName} ${e.account.student.lastName}`,
-    schoolName: e.account.student.school.name,
-    type: e.type,
-    amountCents: e.amountCents,
-    description: e.description,
+  return rows.map((row) => ({
+    createdAt: row.createdAt,
+    studentNumber: row.studentNumber,
+    studentName: row.studentName,
+    schoolName: row.schoolName,
+    activity: row.activity,
+    amountCents: row.amountCents,
+    connection: row.connection,
+    reason: row.reason,
   }));
 }
 
@@ -82,7 +65,7 @@ function csvCell(value: string): string {
 }
 
 export function transactionsToCsv(rows: TransactionRow[]): string {
-  const header = ["Date", "Student number", "Student name", "School", "Type", "Amount", "Description"];
+  const header = ["Date", "Student number", "Student name", "School", "Activity", "Amount", "Connection", "Reason"];
   const lines = [
     ["Prototype notice", PROTOTYPE_BANNER_TEXT].map(csvCell).join(","),
     "",
@@ -95,9 +78,10 @@ export function transactionsToCsv(rows: TransactionRow[]): string {
         r.studentNumber,
         r.studentName,
         r.schoolName,
-        moneyActivityLabel(r.type),
+        r.activity,
         formatCents(r.amountCents),
-        r.description,
+        r.connection ?? "",
+        r.reason ?? "",
       ]
         .map((v) => csvCell(String(v)))
         .join(","),

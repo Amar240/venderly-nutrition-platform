@@ -18,9 +18,160 @@ export function moneyActivityLabel(type: string): string {
     TRANSFER_CREDIT: "Money moved in",
     ADJUSTMENT: "Mistake fixed",
     REFUND: "Money given back",
-    CORRECTION: "Correction",
+    CORRECTION: "Mistake fixed",
   };
   return labels[type] ?? "Money activity";
+}
+
+export interface MoneyHistoryFormatInput {
+  id: string;
+  type: string;
+  amountCents: number;
+  description?: string | null;
+  createdAt: Date;
+  actorType: string;
+  actorName?: string | null;
+  studentName?: string | null;
+  itemName?: string | null;
+  mealType?: "BREAKFAST" | "LUNCH" | string | null;
+  schoolName?: string | null;
+  cashierName?: string | null;
+  paymentGuardianName?: string | null;
+  paymentProviderConfirmed?: boolean;
+  transfer?: {
+    fromStudentName?: string | null;
+    toStudentName?: string | null;
+    counterpartVisible: boolean;
+  } | null;
+  corrects?: {
+    summary: string;
+    createdAt: Date;
+    amountCents: number;
+  } | null;
+  correctedByCount?: number;
+  reason?: string | null;
+  timeZone?: string | null;
+}
+
+export interface MoneyHistoryFormatOutput {
+  activity: string;
+  amountCents: number;
+  amountDirection: "in" | "out" | "none";
+  reason: string | null;
+  connection: string | null;
+  correctedAbove: boolean;
+}
+
+function moneySentenceAmount(amountCents: number): string {
+  const negative = amountCents < 0;
+  const abs = Math.abs(amountCents);
+  const dollars = Math.floor(abs / 100).toLocaleString();
+  const cents = String(abs % 100).padStart(2, "0");
+  return `${negative ? "-" : ""}$${dollars}.${cents}`;
+}
+
+function titleCaseMeal(mealType: string | null | undefined): string {
+  return mealType === "BREAKFAST" ? "Breakfast" : mealType === "LUNCH" ? "Lunch" : "Meal";
+}
+
+function actorFallback(actorType: string): string {
+  if (actorType === "GUARDIAN") return "A guardian";
+  if (actorType === "SYSTEM") return "The system";
+  return "Staff";
+}
+
+function formatHistoryDateTime(date: Date, timeZone?: string | null): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timeZone ?? "America/New_York",
+  }).format(date);
+}
+
+function normalizedDescription(description: string | null | undefined): string {
+  const text = description?.trim();
+  if (!text) return "";
+  return text.replace(/^Mistake fixed:\s*/i, "").replace(/^Money given back:\s*/i, "");
+}
+
+function snackPurchaseText(name: string): string {
+  const lower = name.trim().toLowerCase();
+  if (!lower) return "a snack";
+  if (lower === "milk" || lower === "chips") return lower;
+  if (/^(a|an|the)\s/i.test(name)) return name;
+  return `a ${lower}`;
+}
+
+function reasonFor(input: MoneyHistoryFormatInput): string | null {
+  const reason = input.reason?.trim() || null;
+  if (reason) return reason;
+  if (input.corrects) return normalizedDescription(input.description) || null;
+  if (input.type === "ADJUSTMENT" && !input.corrects) return normalizedDescription(input.description) || null;
+  return null;
+}
+
+export function formatMoneyHistoryEntry(input: MoneyHistoryFormatInput): MoneyHistoryFormatOutput {
+  const amount = moneySentenceAmount(Math.abs(input.amountCents));
+  const actor = input.actorName?.trim() || actorFallback(input.actorType);
+  const school = input.schoolName ? ` at ${input.schoolName}` : "";
+  const cashier = input.cashierName ? ` · rung up by ${input.cashierName}` : "";
+  const reason = reasonFor(input);
+  const quotedReason = reason ? ` Reason: "${reason}"` : "";
+  const isCorrection = Boolean(input.corrects);
+  let activity: string;
+
+  if (isCorrection) {
+    const target = input.corrects?.summary ?? moneyActivityLabel(input.type);
+    if (input.type === "ALACARTE_CHARGE") {
+      activity = `${actor} charged ${amount} for ${target}.${quotedReason}`;
+    } else if (input.amountCents >= 0) {
+      activity = `${actor} gave back ${amount} for ${target}.${quotedReason}`;
+    } else {
+      activity = `${actor} took ${amount} for ${target}.${quotedReason}`;
+    }
+  } else if (input.type === "DEPOSIT") {
+    const payer = input.paymentGuardianName || (input.actorType === "GUARDIAN" ? actor : null);
+    activity = `${payer ?? actor} added ${amount} online`;
+    if (input.paymentProviderConfirmed) activity += " · confirmed by the payment provider";
+    activity += ".";
+  } else if (input.type === "ALACARTE_CHARGE") {
+    activity = `Bought ${snackPurchaseText(input.itemName || normalizedDescription(input.description) || "snack")}${school}${cashier}.`;
+  } else if (input.type === "MEAL_CHARGE") {
+    activity = `${titleCaseMeal(input.mealType)} recorded${school}${cashier}.`;
+  } else if (input.type === "TRANSFER_DEBIT" || input.type === "TRANSFER_CREDIT") {
+    if (input.transfer?.counterpartVisible && input.transfer.fromStudentName && input.transfer.toStudentName) {
+      activity = `${actor} moved ${amount} from ${input.transfer.fromStudentName} to ${input.transfer.toStudentName} · appears in both histories.`;
+    } else {
+      activity = input.type === "TRANSFER_DEBIT"
+        ? `${actor} moved ${amount} out for another child.`
+        : `${actor} moved ${amount} in from another child.`;
+    }
+  } else if (input.type === "ADJUSTMENT" || input.type === "CORRECTION") {
+    const direction = input.amountCents >= 0 ? "added" : "took";
+    activity = `${actor} ${direction} ${amount}.${quotedReason}`;
+  } else if (input.type === "REFUND") {
+    activity = `${actor} gave back ${amount}.${quotedReason}`;
+  } else {
+    const direction = input.amountCents >= 0 ? "added" : "took";
+    const context = normalizedDescription(input.description);
+    activity = `${actor} ${direction} ${amount} for ${moneyActivityLabel(input.type).toLowerCase()}${context ? `: ${context}` : ""}.`;
+  }
+
+  const connection = input.corrects
+    ? `Corrects: ${input.corrects.summary} · ${formatHistoryDateTime(input.corrects.createdAt, input.timeZone)} · ${moneySentenceAmount(input.corrects.amountCents)} — the original remains in history.`
+    : null;
+
+  return {
+    activity,
+    amountCents: input.amountCents,
+    amountDirection: input.amountCents > 0 ? "in" : input.amountCents < 0 ? "out" : "none",
+    reason,
+    connection,
+    correctedAbove: !isCorrection && (input.correctedByCount ?? 0) > 0,
+  };
 }
 
 export function staffRoleLabel(role: string): string {
@@ -63,6 +214,10 @@ export function auditActionLabel(action: string): string {
     STUDENT_CLASSROOM_REASSIGNED: "Moved a student to another class",
     STUDENT_CLASSROOM_UNASSIGNED: "Removed a student from a class",
     STUDENT_CLASSROOM_CLEARED_FOR_SCHOOL_CHANGE: "Cleared a class after a school change",
+    CORRECTION_CASE_CREATED: "Started fixing a mistake",
+    CORRECTION_CHARGE_COMPLETED: "Charged the right student",
+    CORRECTION_FOLLOW_UP_REQUIRED: "Marked a charge as waiting",
+    CORRECTION_FOLLOW_UP_COMPLETED: "Finished a waiting charge",
     STUDENT_VIEW: "Viewed a student",
   };
   return labels[action] ?? "Staff activity";

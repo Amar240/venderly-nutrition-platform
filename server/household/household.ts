@@ -3,14 +3,14 @@ import { AuthError } from "@/server/auth/errors";
 import { requireGuardianOf } from "@/server/auth/rbac";
 import type { AppSession } from "@/server/auth/types";
 import { getResolvedPricingConfig } from "@/server/pricing/config";
-import { getLedgerHistory } from "@/server/ledger/ledger";
+import { getMoneyHistoryForAccount, type MoneyHistoryItem } from "@/server/ledger/moneyHistory";
 import { classifyBalance, lowBalanceThresholdForChild, type BalanceStatus } from "./balance";
 import { computeMealPriceCents } from "@/server/meals/pricing";
 import { missingLunchCountForStudent, recentCompletedOperatingDays } from "@/server/meals/operatingDays";
 import { SERVED_ONLY } from "@/server/meals/mealCounts";
 import { districtToday, isAfterServiceEnd } from "@/server/time/district";
 import { formatCents } from "@/lib/utils";
-import type { LedgerEntry, MealType, PriceTier } from "@prisma/client";
+import type { MealType, PriceTier } from "@prisma/client";
 
 /**
  * Guardian read-models. Every student access is routed through
@@ -220,7 +220,7 @@ export interface ChildDetail {
   accountId: string;
   balanceCents: number;
   status: BalanceStatus;
-  history: LedgerEntry[];
+  history: MoneyHistoryItem[];
 }
 
 /** One child's detail + full ledger history, guarded by the household link. */
@@ -244,7 +244,15 @@ export async function getChildDetail(
     lowBalanceMealsThreshold: config.lowBalanceMealsThreshold,
     lowBalanceThresholdCents: config.lowBalanceThresholdCents,
   });
-  const history = await getLedgerHistory(student.account.id);
+  const visibleLinks = session?.principalType === "guardian"
+    ? await prisma.guardianStudent.findMany({
+        where: { guardianId: session.guardianId },
+        select: { studentId: true },
+      })
+    : [];
+  const history = await getMoneyHistoryForAccount(student.account.id, {
+    visibleStudentIds: visibleLinks.map((link) => link.studentId),
+  });
   return {
     studentId: student.id,
     firstName: student.firstName,

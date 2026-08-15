@@ -89,6 +89,7 @@ function addDays(date: Date, days: number): Date {
 
 async function reset() {
   // Delete in FK-safe order.
+  await prisma.correctionCase.deleteMany();
   await prisma.itemSale.deleteMany();
   await prisma.mealEvent.deleteMany();
   await prisma.paymentAllocation.deleteMany();
@@ -288,7 +289,7 @@ async function main() {
       firstName: "Ella",
       lastName: "Whitfield",
       grade: "3",
-      account: { create: { balanceCents: 4200 } },
+      account: { create: { balanceCents: 4450 } },
     },
   });
   const demoChildB = await prisma.student.create({
@@ -303,7 +304,7 @@ async function main() {
     },
   });
   for (const [child, bal] of [
-    [demoChildA, 4200],
+    [demoChildA, 4450],
     [demoChildB, 900],
   ] as const) {
     const acct = await prisma.account.findUniqueOrThrow({
@@ -515,7 +516,7 @@ async function main() {
       actorType: "SYSTEM",
     },
   });
-  await recordAdjustment({
+  const seededAdjustment = await recordAdjustment({
     originalEntryId: incorrectEntry.id,
     amountCents: -300,
     reason: "Seeded demo correction for an incorrect cash payment",
@@ -530,6 +531,43 @@ async function main() {
       },
     },
   });
+  await prisma.correctionCase.create({
+    data: {
+      situation: "SOMETHING_ELSE",
+      status: "COMPLETED",
+      studentId: demoChildA.id,
+      originalEntryId: incorrectEntry.id,
+      reason: "Seeded demo correction for an incorrect cash payment",
+      actorId: superAdminUserId!,
+      adjustmentEntryId: seededAdjustment.id,
+      expectedAmountCents: 0,
+      completedAt: new Date(),
+      completedByUserId: superAdminUserId!,
+    },
+  });
+
+  const cookie = await prisma.item.findFirstOrThrow({
+    where: { districtId: district.id, name: "Cookie" },
+  });
+  for (const suffix of ["A", "B"]) {
+    const charge = await prisma.ledgerEntry.create({
+      data: {
+        accountId: ellaAccount.id,
+        type: "ALACARTE_CHARGE",
+        amountCents: -125,
+        description: `Cookie return demo ${suffix}`,
+        actorType: "SYSTEM",
+      },
+    });
+    await prisma.itemSale.create({
+      data: {
+        itemId: cookie.id,
+        studentId: demoChildA.id,
+        priceCentsAtSale: 125,
+        ledgerEntryId: charge.id,
+      },
+    });
+  }
 
   // --- Default price tier for every student ---------------------------------
   // Pricing INPUT only (server/meals reads it); CEP still resolves meals to $0.

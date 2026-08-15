@@ -73,6 +73,20 @@ enum PricingSource {
   DEFAULT
 }
 
+enum CorrectionSituation {
+  CHARGED_TWICE
+  WRONG_STUDENT
+  SNACK_RETURNED
+  SOMETHING_ELSE
+  DISTRICT_DECISION
+}
+
+enum CorrectionCaseStatus {
+  PENDING
+  FOLLOW_UP_REQUIRED
+  COMPLETED
+}
+
 enum NotificationType {
   LOW_BALANCE
   DEPOSIT_COMPLETED
@@ -185,6 +199,8 @@ model Student {
   mealEvents         MealEvent[]
   itemSales          ItemSale[]
   paymentAllocations PaymentAllocation[]
+  correctionCases    CorrectionCase[] @relation("CorrectionCaseStudent")
+  targetedCorrectionCases CorrectionCase[] @relation("CorrectionCaseTargetStudent")
 
   @@unique([districtId, studentNumber])
   @@index([schoolId])
@@ -265,6 +281,8 @@ model User {
   schools            UserSchool[]
   recordedMealEvents MealEvent[]  @relation("MealRecordedBy")
   reversedMealEvents MealEvent[]  @relation("MealReversedBy")
+  correctionCases    CorrectionCase[] @relation("CorrectionCaseActor")
+  completedCorrectionCases CorrectionCase[] @relation("CorrectionCaseCompletedBy")
 }
 
 model UserSchool {
@@ -312,9 +330,45 @@ model LedgerEntry {
   correctedBy   LedgerEntry[] @relation("Corrections")
   mealEvent     MealEvent?
   itemSale      ItemSale?
+  correctionCaseOriginal  CorrectionCase? @relation("CorrectionCaseOriginal")
+  correctionCaseRefund    CorrectionCase? @relation("CorrectionCaseRefund")
+  correctionCaseCharge    CorrectionCase? @relation("CorrectionCaseCharge")
+  correctionCaseAdjustment CorrectionCase? @relation("CorrectionCaseAdjustment")
 
   @@index([accountId])
   @@index([transferRef])
+}
+
+model CorrectionCase {
+  id                String               @id @default(cuid())
+  situation         CorrectionSituation
+  status            CorrectionCaseStatus @default(PENDING)
+  studentId         String
+  originalEntryId   String?              @unique
+  targetStudentId   String?
+  reason            String
+  actorId           String?
+  refundEntryId     String?              @unique
+  chargeEntryId     String?              @unique
+  adjustmentEntryId String?              @unique
+  expectedAmountCents Int?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  completedAt       DateTime?
+  completedByUserId String?
+
+  student         Student      @relation("CorrectionCaseStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  targetStudent   Student?     @relation("CorrectionCaseTargetStudent", fields: [targetStudentId], references: [id], onDelete: Restrict)
+  actor           User?        @relation("CorrectionCaseActor", fields: [actorId], references: [id], onDelete: SetNull)
+  completedBy     User?        @relation("CorrectionCaseCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  originalEntry   LedgerEntry? @relation("CorrectionCaseOriginal", fields: [originalEntryId], references: [id], onDelete: Restrict)
+  refundEntry     LedgerEntry? @relation("CorrectionCaseRefund", fields: [refundEntryId], references: [id], onDelete: SetNull)
+  chargeEntry     LedgerEntry? @relation("CorrectionCaseCharge", fields: [chargeEntryId], references: [id], onDelete: SetNull)
+  adjustmentEntry LedgerEntry? @relation("CorrectionCaseAdjustment", fields: [adjustmentEntryId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+  @@index([targetStudentId])
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------

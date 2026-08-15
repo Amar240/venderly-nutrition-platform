@@ -4,11 +4,10 @@ import { getAppSession } from "@/server/auth/session";
 import { getStudentAdminDetail } from "@/server/directory/adminStudents";
 import { AuthError } from "@/server/auth/errors";
 import { MoneyDisplay } from "@/components/ui/money";
-import { formatCents } from "@/lib/utils";
 import { CorrectionsPanel } from "./corrections-panel";
-import { auditActionLabel, auditActorLabel, moneyActivityLabel } from "@/lib/presentation-labels";
-
-const REFUNDABLE = new Set(["DEPOSIT", "MEAL_CHARGE", "ALACARTE_CHARGE", "TRANSFER_CREDIT", "TRANSFER_DEBIT"]);
+import { auditActionLabel, auditActorLabel } from "@/lib/presentation-labels";
+import { getCorrectionPanelModel } from "@/server/corrections/situationCorrections";
+import { MoneyHistoryList } from "@/components/money-history-list";
 
 function fmtDate(d: Date) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -35,10 +34,9 @@ export default async function StudentDetailPage({ params }: { params: { studentI
   }
   if (!detail) notFound();
 
-  const shortId = (id: string) => id.slice(-6);
-  const refundable = detail.history
-    .filter((e) => REFUNDABLE.has(e.type))
-    .map((e) => ({ id: e.id, label: `${moneyActivityLabel(e.type)} ${formatCents(e.amountCents)} · ${fmtDate(e.createdAt)}` }));
+  const correctionModel = detail.canCorrect
+    ? await getCorrectionPanelModel(session, detail.id)
+    : null;
 
   return (
     <section className="space-y-6">
@@ -64,36 +62,18 @@ export default async function StudentDetailPage({ params }: { params: { studentI
         </div>
       </div>
 
-      {detail.canCorrect && <CorrectionsPanel studentId={detail.id} refundable={refundable} />}
+      {detail.canCorrect && correctionModel && (
+        <CorrectionsPanel
+          studentId={detail.id}
+          snackCharges={correctionModel.snackCharges}
+          paymentsAndCharges={correctionModel.paymentsAndCharges}
+          followUps={correctionModel.followUps}
+        />
+      )}
 
       {/* Money history — original and corrective activity side by side. */}
       <Panel title="Money history">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-ink-muted">
-              <th scope="col" className="px-4 py-2 font-medium">Date</th>
-              <th scope="col" className="px-4 py-2 font-medium">Activity</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Amount</th>
-              <th scope="col" className="px-4 py-2 font-medium">Linked fix</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...detail.history].reverse().map((e) => (
-              <tr key={e.id} className="border-b border-border last:border-0">
-                <td className="whitespace-nowrap px-4 py-2 text-ink-muted">{fmtDate(e.createdAt)}</td>
-                <td className="px-4 py-2 text-ink">
-                  {moneyActivityLabel(e.type)}
-                  <span className="block text-xs text-ink-muted">{e.description}</span>
-                </td>
-                <td className="px-4 py-2 text-right"><MoneyDisplay amountCents={e.amountCents} sign /></td>
-                <td className="px-4 py-2 text-xs text-ink-muted">
-                  {e.correctsEntryId ? `#${shortId(e.correctsEntryId)}` : "—"}
-                </td>
-              </tr>
-            ))}
-            {detail.history.length === 0 && <Empty span={4} />}
-          </tbody>
-        </table>
+        <MoneyHistoryList items={detail.history} />
       </Panel>
 
       <div className="grid gap-6 md:grid-cols-2">

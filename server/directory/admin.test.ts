@@ -27,6 +27,7 @@ try {
 const districtIds: string[] = [];
 afterAll(async () => {
   for (const id of districtIds) {
+    await prisma.correctionCase.deleteMany({ where: { student: { districtId: id } } });
     await prisma.auditLog.deleteMany({ where: { districtId: id } });
     await prisma.mealEvent.deleteMany({ where: { student: { districtId: id } } });
     await prisma.itemSale.deleteMany({ where: { student: { districtId: id } } });

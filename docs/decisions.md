@@ -147,6 +147,36 @@ The edit check (`design-spec-05-claims-and-compliance.md`) needs a state-supplie
 
 Ceiling = enrollment × attendance factor, rounded **down** to the nearest whole meal, per category. The ceiling is a maximum threshold used to flag over-claiming; rounding up would inflate it and let over-claims slip through undetected. This is a reasoned default, not a cited federal rounding rule — no explicit rounding instruction was found in the sources checked, so flag it as reviewable if the district's own auditor uses a different convention.
 
+## D-15 · Moving a charge between two students is two independent outcomes, not one all-or-nothing correction
+**Decided:** stage B · **Status:** settled
+
+When a snack charge was applied to the wrong student, fixing it has two halves: refund the student who was wrongly charged (A), and charge the student who should have been charged (B). B's charge is subject to the same rule enforced at the register — a-la-carte is denied if it would take a balance below zero (rule 11).
+
+**Decision:** these are not one atomic all-or-nothing operation. Refunding A is unconditionally correct and always succeeds, regardless of B's balance — A's problem isn't A's fault, and blocking their fix on an unrelated student's balance is unfair. Charging B reuses the exact balance check already used at the register (`lockAccountsForUpdate` + `assertCanDebit`, D-7) and can independently fail if B doesn't have enough snack money.
+
+Binding constraints:
+- If B's charge cannot be completed, A is still refunded. The correction record and audit entry show the second half as outstanding — never silently reported as fully resolved, never a signal-free gap for staff to discover later.
+- B is never taken negative to force the correction through. That would bypass rule 11 through a back door and preempt Stage C item 9's arrears decision, where the district's actual policy on negative balances belongs deliberately, not introduced early by accident here.
+- Once B's balance allows it, staff complete the outstanding half as a follow-up tied to the same original correction record, not a new unrelated one.
+
+## D-16 · "Something else" corrections select the original entry and state what it should have been
+**Decided:** stage B · **Status:** settled
+
+The situation-first correction flow can't name every possible mistake. For anything that doesn't match a listed situation, staff select the actual payment or charge on the student's account and enter what it should have been; the server computes the difference and writes the correctly-linked, self-guarded correction (D-8, rule 2) — staff never name or choose a ledger operation.
+
+Rejected: a generic add/remove-money amount with no selected entry. It doesn't link the correction to a specific original, which is exactly what rule 2 requires, and it's operation-first thinking wearing a thinner disguise — "more or less money" still asks staff to think in ledger terms. Also rejected: reason-only, deferred to a later manual review. No such review workflow exists anywhere in the spec set; deferring dodges the problem this item exists to solve.
+
+**Binding constraint:** if a situation genuinely has no corresponding entry — money should have existed but was never recorded at all, not a wrong figure on something real — that is not a correction. It's a general adjustment, already its own self-guarded, distinctly labeled path (D-8's `recordAdjustment`). Don't force a fabricated selection through "Something else" to reach it.
+
+## D-17 · A district decision with no original renders as a standalone entry in money history
+**Decided:** stage B · **Status:** settled
+
+D-16 deliberately leaves a district decision to add or take money unlinked to any original entry — it isn't a correction of anything. It's tracked through its own `CorrectionCase` record with `originalEntryId: null`, a state the schema already supports (the field has been nullable from the start; this is not new).
+
+**Decision:** money history renders it as the normal actor/amount/reason sentence — no "Corrects" link, and no "no original payment or charge" note either. An absence note would imply a link should exist and doesn't, which re-couples it visually to corrections right after D-16 deliberately separated it. Restructuring persistence so district decisions stop creating a `CorrectionCase` record was considered and rejected — unnecessary; the nullable `originalEntryId` already models "no original" correctly. The money-history sentence formatter renders off whether a link is present, not off whether a `CorrectionCase` exists at all.
+
+**Fix while here:** `recordAdjustment` currently stores the description as `Mistake fixed: ${reason}` unconditionally. Correct for D-16's linked "something else" adjustments — those are genuinely fixing a mistake — wrong for a district decision, which isn't one. Left as-is the sentence reads "Mistake fixed: District decision to change snack money," the same operation-shaped mislabeling item 7 was built to remove. Compose the sentence display-side from type, link presence, and reason — don't trust a one-size-fits-all stored description.
+
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled
 
