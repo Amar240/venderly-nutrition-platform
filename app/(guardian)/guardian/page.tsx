@@ -4,6 +4,7 @@ import { getHousehold } from "@/server/household/household";
 import { MoneyDisplay } from "@/components/ui/money";
 import { BalanceStatusPill } from "@/components/balance-status";
 import { LinkButton } from "@/components/ui/link-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Guardian household dashboard. Children are reached ONLY through the verified
@@ -62,9 +63,11 @@ export default async function GuardianHomePage() {
           </Link>
         ))}
         {household.length === 0 && (
-          <p className="text-sm text-ink-muted">
-            No linked children on this account yet.
-          </p>
+          <EmptyState
+            title="No linked children yet"
+            body="This guardian login is active, but no students are linked to it. Ask an admin to verify the household link, then refresh this page."
+            className="sm:col-span-2"
+          />
         )}
       </div>
     </section>

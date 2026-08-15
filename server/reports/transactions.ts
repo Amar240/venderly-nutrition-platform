@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/client";
 import { AuthError } from "@/server/auth/errors";
 import { reportScope } from "./scope";
 import { formatCents } from "@/lib/utils";
+import { PROTOTYPE_BANNER_TEXT } from "@/lib/prototype";
 import type { AppSession } from "@/server/auth/types";
 
 /**
@@ -81,7 +82,11 @@ function csvCell(value: string): string {
 
 export function transactionsToCsv(rows: TransactionRow[]): string {
   const header = ["Date", "Student number", "Student name", "School", "Type", "Amount", "Description"];
-  const lines = [header.map(csvCell).join(",")];
+  const lines = [
+    ["Prototype notice", PROTOTYPE_BANNER_TEXT].map(csvCell).join(","),
+    "",
+    header.map(csvCell).join(","),
+  ];
   for (const r of rows) {
     lines.push(
       [

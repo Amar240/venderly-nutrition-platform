@@ -60,7 +60,7 @@ All domain logic lives in `server/`; route handlers are thin. UI never computes 
 ## Commands
 - `npm run dev` — start app
 - `npx prisma migrate dev` — apply migrations
-- `npm run seed` — reset + load synthetic data (4 schools, ~200 students, multi-child households with differing surnames)
+- `npm run seed` — reset + load synthetic data (6 real Woodbridge schools, 200 synthetic students, multi-child households with differing surnames)
 - `npm test` — run tests
 
 ## Working agreement

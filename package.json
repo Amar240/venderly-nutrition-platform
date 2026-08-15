@@ -9,10 +9,14 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
+    "fixtures:generate": "tsx fixtures/generate.ts",
+    "demo:reset": "npm run seed && npm run fixtures:generate",
     "logins": "tsx scripts/logins.ts",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "test": "vitest run",
+    "test:e2e": "playwright test --workers=1",
+    "playwright:install": "playwright install chromium",
     "test:watch": "vitest"
   },
   "prisma": {
@@ -34,6 +38,8 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.9",
     "@types/react": "^18.3.14",

@@ -39,9 +39,15 @@ export function MealEntry({ mealType, label }: { mealType: MealType; label: stri
     const num = value.trim();
     if (!num || pending) return;
     setPending(true);
-    const r = await recordMealAction(mealType, num);
-    setPending(false);
-    setResult(r);
+    try {
+      const r = await recordMealAction(mealType, num);
+      setResult(r);
+    } catch {
+      setResult({ status: "error" });
+    } finally {
+      setPending(false);
+      window.requestAnimationFrame(focus);
+    }
   }
 
   return (

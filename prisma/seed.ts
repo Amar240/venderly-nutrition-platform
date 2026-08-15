@@ -1,7 +1,7 @@
 /**
  * Synthetic seed — idempotent (full reset + reload). Produces:
- *  - 1 district, 4 schools
- *  - ~200 students in multi-child households with differing surnames
+ *  - 1 district, 6 real Woodbridge schools with proportional synthetic enrollment
+ *  - 200 students in multi-child households with differing surnames
  *  - guardians linked via GuardianStudent, accounts with varied balances
  *    (balances derive from opening ledger entries; cached balanceCents matches)
  *  - one sign-in per role; staff pre-enrolled with a TOTP secret
@@ -19,22 +19,27 @@ import {
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
 import { withLedgerAdmin } from "../server/ledger/admin";
+import { recordAdjustment } from "../server/ledger/ledger";
+import {
+  buildRemainingSchoolSlots,
+  buildStudentPricingRows,
+  DEMO_STUDENT_COUNT,
+  mulberry32,
+  WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
+  WOODBRIDGE_SEED_SCHOOLS,
+} from "./seed-data";
 
 const prisma = new PrismaClient();
 
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1";
+const STAFF_TOTP_ENV: Partial<Record<Role, string | undefined>> = {
+  CASHIER: process.env.SEED_TOTP_CASHIER,
+  SCHOOL_STAFF: process.env.SEED_TOTP_SCHOOL_STAFF,
+  DISTRICT_ADMIN: process.env.SEED_TOTP_DISTRICT_ADMIN,
+  SUPER_ADMIN: process.env.SEED_TOTP_SUPER_ADMIN,
+};
 
 // --- deterministic RNG so reloads reproduce the same dataset ---------------
-function mulberry32(seed: number) {
-  let a = seed;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 const rng = mulberry32(20260812);
 const pick = <T>(arr: T[]): T => arr[Math.floor(rng() * arr.length)]!;
 const randint = (a: number, b: number) => a + Math.floor(rng() * (b - a + 1));
@@ -51,18 +56,6 @@ const LAST_NAMES = [
   "Hernandez", "Cohen", "Ahmed", "Williams", "Silva", "Martin", "Khan",
   "Brooks", "Torres", "Rivera", "Bauer", "Osei", "Delgado", "Ford",
   "Petrov", "Nakamura", "Flores", "Abbott", "Reyes", "Haddad", "Long",
-];
-
-interface SchoolSpec {
-  name: string;
-  code: string;
-  grades: string[];
-}
-const SCHOOL_SPECS: SchoolSpec[] = [
-  { name: "Woodbridge Elementary", code: "WES", grades: ["K", "1", "2", "3", "4", "5"] },
-  { name: "Maple Grove Elementary", code: "MGE", grades: ["K", "1", "2", "3", "4", "5"] },
-  { name: "Riverside Middle", code: "RMS", grades: ["6", "7", "8"] },
-  { name: "Woodbridge High", code: "WHS", grades: ["9", "10", "11", "12"] },
 ];
 
 async function hash(pw: string) {
@@ -179,7 +172,10 @@ async function main() {
   await reset();
 
   const district = await prisma.district.create({
-    data: { name: "Woodbridge School District" },
+    data: {
+      name: "Woodbridge School District",
+      identifiedStudentPercentageBps: WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
+    },
   });
 
   // District-wide CEP pricing default: $0 breakfast/lunch for all tiers.
@@ -212,13 +208,15 @@ async function main() {
   }
 
   const schools = [];
-  for (const spec of SCHOOL_SPECS) {
+  for (const spec of WOODBRIDGE_SEED_SCHOOLS) {
     const school = await prisma.school.create({
       data: { districtId: district.id, name: spec.name, code: spec.code },
     });
-    schools.push({ ...school, grades: spec.grades });
+    schools.push({ ...school, grades: spec.grades, seedCount: spec.seedCount });
   }
-  const [wes, mge, rms, whs] = schools;
+  const schoolsByCode = new Map(schools.map((school) => [school.code, school]));
+  const wheatley = schoolsByCode.get("0779")!;
+  const middle = schoolsByCode.get("7750")!;
 
   const guardianPasswordHash = await hash(DEMO_PASSWORD);
 
@@ -235,7 +233,7 @@ async function main() {
   const demoChildA = await prisma.student.create({
     data: {
       districtId: district.id,
-      schoolId: wes!.id,
+      schoolId: wheatley.id,
       studentNumber: nextStudentNumber(),
       firstName: "Ella",
       lastName: "Whitfield",
@@ -246,7 +244,7 @@ async function main() {
   const demoChildB = await prisma.student.create({
     data: {
       districtId: district.id,
-      schoolId: rms!.id,
+      schoolId: middle.id,
       studentNumber: nextStudentNumber(),
       firstName: "Marcus",
       lastName: "Okafor", // differing surname (blended household)
@@ -254,9 +252,21 @@ async function main() {
       account: { create: { balanceCents: 900 } }, // low — shows warn pill
     },
   });
+  const cashierDemoStudent = await prisma.student.create({
+    data: {
+      districtId: district.id,
+      schoolId: wheatley.id,
+      studentNumber: nextStudentNumber(),
+      firstName: "Nora",
+      lastName: "Bell",
+      grade: "4",
+      account: { create: { balanceCents: 1800 } },
+    },
+  });
   for (const [child, bal] of [
     [demoChildA, 4200],
     [demoChildB, 900],
+    [cashierDemoStudent, 1800],
   ] as const) {
     const acct = await prisma.account.findUniqueOrThrow({
       where: { studentId: child.id },
@@ -279,11 +289,16 @@ async function main() {
     });
   }
 
-  let studentCount = 2; // the two demo children
+  let studentCount = 3; // the two guardian demo children + cashier repeat student
   let householdIndex = 0;
+  const remainingSchoolSlots = buildRemainingSchoolSlots({
+    schools: WOODBRIDGE_SEED_SCHOOLS,
+    alreadyAssignedByCode: { "0779": 2, "7750": 1 },
+    seed: 20260815,
+  });
 
   console.log("Creating households and students…");
-  while (studentCount < 200) {
+  while (studentCount < DEMO_STUDENT_COUNT) {
     householdIndex += 1;
     const householdSize = rng() < 0.55 ? 1 : rng() < 0.85 ? 2 : 3;
     const guardianLastName = pick(LAST_NAMES);
@@ -298,8 +313,11 @@ async function main() {
       },
     });
 
-    for (let c = 0; c < householdSize && studentCount < 200; c++) {
-      const school = pick(schools);
+    for (let c = 0; c < householdSize && studentCount < DEMO_STUDENT_COUNT; c++) {
+      const schoolCode = remainingSchoolSlots.shift();
+      if (!schoolCode) throw new Error("School slot allocation exhausted before student target");
+      const school = schoolsByCode.get(schoolCode);
+      if (!school) throw new Error(`Unknown seeded school slot: ${schoolCode}`);
       const child = await createStudentWithAccount(
         district.id,
         school,
@@ -316,6 +334,9 @@ async function main() {
       studentCount += 1;
     }
   }
+  if (remainingSchoolSlots.length > 0) {
+    throw new Error(`School slot allocation left ${remainingSchoolSlots.length} unused slots`);
+  }
 
   // --- Staff users, one per role, with pre-enrolled TOTP --------------------
   interface StaffSpec {
@@ -326,17 +347,18 @@ async function main() {
     schoolIds: string[];
   }
   const staffSpecs: StaffSpec[] = [
-    { email: "cashier@woodbridge.demo", firstName: "Casey", lastName: "Nguyen", role: "CASHIER", schoolIds: [wes!.id] },
-    { email: "staff@woodbridge.demo", firstName: "Sam", lastName: "Patel", role: "SCHOOL_STAFF", schoolIds: [wes!.id] },
+    { email: "cashier@woodbridge.demo", firstName: "Casey", lastName: "Nguyen", role: "CASHIER", schoolIds: [wheatley.id] },
+    { email: "staff@woodbridge.demo", firstName: "Sam", lastName: "Patel", role: "SCHOOL_STAFF", schoolIds: [wheatley.id] },
     { email: "districtadmin@woodbridge.demo", firstName: "Drew", lastName: "Garcia", role: "DISTRICT_ADMIN", schoolIds: schools.map((s) => s.id) },
     { email: "superadmin@woodbridge.demo", firstName: "Robin", lastName: "Osei", role: "SUPER_ADMIN", schoolIds: schools.map((s) => s.id) },
   ];
 
   const staffPasswordHash = await hash(DEMO_PASSWORD);
   const staffCreds: { email: string; role: Role; totpSecret: string; totpNow: string }[] = [];
+  let superAdminUserId: string | null = null;
   for (const spec of staffSpecs) {
-    const totpSecret = authenticator.generateSecret();
-    await prisma.user.create({
+    const totpSecret = STAFF_TOTP_ENV[spec.role] ?? authenticator.generateSecret();
+    const user = await prisma.user.create({
       data: {
         email: spec.email,
         passwordHash: staffPasswordHash,
@@ -351,6 +373,7 @@ async function main() {
         },
       },
     });
+    if (spec.role === "SUPER_ADMIN") superAdminUserId = user.id;
     staffCreds.push({
       email: spec.email,
       role: spec.role,
@@ -359,15 +382,42 @@ async function main() {
     });
   }
 
+  const ellaAccount = await prisma.account.findUniqueOrThrow({
+    where: { studentId: demoChildA.id },
+  });
+  const incorrectEntry = await prisma.ledgerEntry.create({
+    data: {
+      accountId: ellaAccount.id,
+      type: "DEPOSIT",
+      amountCents: 300,
+      description: "Incorrect synthetic cash deposit",
+      actorType: "SYSTEM",
+    },
+  });
+  await recordAdjustment({
+    originalEntryId: incorrectEntry.id,
+    amountCents: -300,
+    reason: "Seeded demo correction for an incorrect cash deposit",
+    actor: {
+      kind: "staff",
+      session: {
+        principalType: "staff",
+        userId: superAdminUserId!,
+        role: "SUPER_ADMIN",
+        districtId: district.id,
+        schoolIds: schools.map((s) => s.id),
+      },
+    },
+  });
+
   // --- Default price tier for every student ---------------------------------
-  // Pricing INPUT only (server/meals reads it); default FREE under CEP.
-  const allStudents = await prisma.student.findMany({ select: { id: true } });
+  // Pricing INPUT only (server/meals reads it); CEP still resolves meals to $0.
+  const allStudents = await prisma.student.findMany({
+    select: { id: true },
+    orderBy: { studentNumber: "asc" },
+  });
   await prisma.studentPricing.createMany({
-    data: allStudents.map((s) => ({
-      studentId: s.id,
-      tier: "FREE" as const,
-      source: "DEFAULT" as const,
-    })),
+    data: buildStudentPricingRows(allStudents.map((s) => s.id)),
     skipDuplicates: true,
   });
 
@@ -375,7 +425,7 @@ async function main() {
   await prisma.notification.create({
     data: {
       districtId: district.id,
-      schoolId: rms!.id,
+      schoolId: middle.id,
       guardianId: demoGuardian.id,
       type: "LOW_BALANCE",
       title: "Low balance: Marcus Okafor",

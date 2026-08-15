@@ -1,9 +1,9 @@
-import { prisma } from "@/server/db/client";
+import { prisma } from "../db/client";
 import { Prisma, type ActorType, type LedgerEntry } from "@prisma/client";
-import { writeAudit } from "@/server/audit/log";
-import { requireRole } from "@/server/auth/rbac";
-import { AuthError } from "@/server/auth/errors";
-import type { AppSession } from "@/server/auth/types";
+import { writeAudit } from "../audit/log";
+import { requireRole } from "../auth/rbac";
+import { AuthError } from "../auth/errors";
+import type { AppSession } from "../auth/types";
 import { lockAccountsForUpdate, assertCanDebit } from "./balanceGuard";
 
 /**

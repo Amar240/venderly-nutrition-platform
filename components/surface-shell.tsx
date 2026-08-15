@@ -34,22 +34,25 @@ export function SurfaceShell({
 }: SurfaceShellProps) {
   return (
     <div data-density={surface} className="min-h-screen bg-surface text-ink">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <PrototypeBanner />
       <header className="border-b border-border bg-surface-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex flex-col leading-tight">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 sm:gap-6">
+            <Link href="/" className="flex min-h-touch flex-col justify-center leading-tight">
               <span className="text-lg font-medium text-ink">Woodbridge Nutrition</span>
               <span className="text-xs text-ink-muted">{surfaceLabel}</span>
             </Link>
             {navItems.length > 0 && (
-              <nav aria-label={`${surfaceLabel} navigation`}>
-                <ul className="flex items-center gap-4">
+              <nav aria-label={`${surfaceLabel} navigation`} className="w-full sm:w-auto">
+                <ul className="flex flex-wrap items-center gap-2 sm:gap-4">
                   {navItems.map((item) => (
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className="rounded-control px-2 py-1 text-sm text-ink-muted hover:bg-brand-wash"
+                        className="flex min-h-touch items-center rounded-control px-2 py-1 text-sm text-ink-muted hover:bg-brand-wash"
                       >
                         {item.label}
                       </Link>
@@ -59,7 +62,7 @@ export function SurfaceShell({
               </nav>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" data-print-hidden="true">
             <div className="text-right leading-tight">
               <div className="text-sm font-medium text-ink">{identityLabel}</div>
               <div className="text-xs text-ink-muted">{roleLabel}</div>
@@ -72,7 +75,7 @@ export function SurfaceShell({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   );
 }

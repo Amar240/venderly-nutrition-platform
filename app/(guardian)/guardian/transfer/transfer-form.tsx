@@ -18,7 +18,7 @@ interface ChildOption {
 
 const initialState: TransferState = { error: null };
 const selectClass =
-  "min-h-touch w-full rounded-control border border-border bg-surface-card px-3 py-2 text-base text-ink";
+  "min-h-touch w-full rounded-control border border-control-border bg-surface-card px-3 py-2 text-base text-ink";
 
 export function TransferForm({
   token,

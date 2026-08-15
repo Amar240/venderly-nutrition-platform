@@ -1,6 +1,7 @@
 import { getAppSession } from "@/server/auth/session";
 import { getInbox } from "@/server/notifications/inbox";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { markInboxReadAction } from "./actions";
 
 /** Guardian inbox — in-app notifications (deposits, transfers, low balance). */
@@ -41,8 +42,11 @@ export default async function InboxPage() {
           </li>
         ))}
         {notifications.length === 0 && (
-          <li className="rounded-card border border-border bg-surface-card p-6 text-center text-sm text-ink-muted">
-            No notifications yet.
+          <li>
+            <EmptyState
+              title="No notifications yet"
+              body="Balance updates, deposit confirmations, and transfer notices will appear here when there is something to review."
+            />
           </li>
         )}
       </ul>

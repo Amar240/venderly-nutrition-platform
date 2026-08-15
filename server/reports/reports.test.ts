@@ -7,6 +7,7 @@ import { listTransactions, transactionsToCsv } from "./transactions";
 import { searchAuditLog } from "@/server/audit/query";
 import { withLedgerAdmin } from "@/server/ledger/admin";
 import { AuthError } from "@/server/auth/errors";
+import { PROTOTYPE_BANNER_TEXT } from "@/lib/prototype";
 import type { AppSession } from "@/server/auth/types";
 
 /**
@@ -147,14 +148,18 @@ describe.skipIf(!dbUp)("transaction export", () => {
     expect(JSON.stringify(rows).toLowerCase()).not.toContain("tier");
   });
 
-  it("produces a CSV with a header and escaped cells", async () => {
+  it("produces a CSV with a prototype notice, header, escaped cells, and no tier data", async () => {
     const rows = [
-      { createdAt: new Date("2026-08-12T12:00:00Z"), studentNumber: "100001", studentName: "Ella Whitfield", schoolName: "Alpha", type: "DEPOSIT", amountCents: 5000, description: 'Deposit, "simulated"' },
+      { createdAt: new Date("2026-08-12T12:00:00Z"), studentNumber: "100001", studentName: "Ella Whitfield", schoolName: "Alpha", type: "DEPOSIT", amountCents: 5000, description: '=Deposit, "simulated"' },
     ];
     const csv = transactionsToCsv(rows);
-    expect(csv.split("\r\n")[0]).toContain("Student number");
-    expect(csv).toContain('"Deposit, ""simulated"""'); // comma + quotes escaped
+    const lines = csv.split("\r\n");
+    expect(lines[0]).toBe(`"Prototype notice","${PROTOTYPE_BANNER_TEXT.replace(/"/g, '""')}"`);
+    expect(lines[1]).toBe("");
+    expect(lines[2]).toContain("Student number");
+    expect(csv).toContain(`"'=Deposit, ""simulated"""`); // formula guard + quotes escaped
     expect(csv.toLowerCase()).not.toContain("tier");
+    expect(csv.toLowerCase()).not.toContain("eligib");
   });
 });
 

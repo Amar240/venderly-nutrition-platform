@@ -19,9 +19,10 @@
   --surface: #faf8f4;
   --surface-card: #ffffff;
   --border: #e3dfd7;
-  --success: #2e7d4f;
+  --control-border: #918d85;
+  --success: #25663f;
   --success-wash: #e6f1ea;
-  --warn: #b5730b;
+  --warn: #855300;
   --warn-wash: #f7ecd9;
   --danger: #b3261e;
   --danger-wash: #f7e2e0;
@@ -89,6 +90,29 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .skip-link {
+    position: absolute;
+    left: var(--space-4);
+    top: var(--space-2);
+    z-index: 50;
+    transform: translateY(-160%);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-control);
+    background: var(--surface-card);
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-min);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: 500;
+  }
+
+  .skip-link:focus,
+  .skip-link:focus-visible {
+    transform: translateY(0);
+  }
+
   /* Visible focus ring on everything focusable — never remove without a
      replacement (design-system.md accessibility rules). */
   :focus-visible {
@@ -104,6 +128,40 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+  }
+
+  @media print {
+    body {
+      background: var(--surface-card);
+      color: var(--ink);
+    }
+
+    .skip-link,
+    header,
+    nav,
+    form[action],
+    [data-print-hidden="true"] {
+      display: none !important;
+    }
+
+    main {
+      max-width: none !important;
+      padding: 16px !important;
+    }
+
+    [role="note"] {
+      display: flex !important;
+      border: 1px solid var(--control-border);
+      background: var(--warn-wash) !important;
+      color: var(--ink) !important;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
     }
   }
 }

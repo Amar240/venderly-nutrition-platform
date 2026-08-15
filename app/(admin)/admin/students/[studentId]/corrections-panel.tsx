@@ -15,7 +15,7 @@ import { CheckCircleIcon, AlertCircleIcon } from "@/components/icons";
 
 const initial: CorrectionState = { error: null, ok: false };
 const selectClass =
-  "min-h-touch w-full rounded-control border border-border bg-surface-card px-3 py-2 text-base text-ink";
+  "min-h-touch w-full rounded-control border border-control-border bg-surface-card px-3 py-2 text-base text-ink";
 
 interface RefundableEntry {
   id: string;
@@ -97,13 +97,19 @@ function AdjustForm({ studentId }: { studentId: string }) {
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="flex gap-2">
-          <select name="direction" className={selectClass} aria-label="Direction">
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="adjust-direction">Direction</Label>
+            <select id="adjust-direction" name="direction" className={selectClass}>
             <option value="add">Add funds</option>
             <option value="remove">Remove funds</option>
-          </select>
-          <div className="flex items-center gap-1">
-            <span aria-hidden className="text-ink-muted">$</span>
-            <Input name="amount" inputMode="decimal" placeholder="0.00" required />
+            </select>
+          </div>
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="adjust-amount">Amount</Label>
+            <div className="flex items-center gap-1">
+              <span aria-hidden className="text-ink-muted">$</span>
+              <Input id="adjust-amount" name="amount" inputMode="decimal" placeholder="0.00" required />
+            </div>
           </div>
         </div>
         <ReasonField id="adjust-reason" />
@@ -124,9 +130,12 @@ function ReallocateForm({ studentId }: { studentId: string }) {
           <Label htmlFor="realloc-to">Destination student number</Label>
           <Input id="realloc-to" name="toStudentNumber" inputMode="numeric" required />
         </div>
-        <div className="flex items-center gap-1">
-          <span aria-hidden className="text-ink-muted">$</span>
-          <Input name="amount" inputMode="decimal" placeholder="0.00" required />
+        <div className="space-y-1">
+          <Label htmlFor="realloc-amount">Amount</Label>
+          <div className="flex items-center gap-1">
+            <span aria-hidden className="text-ink-muted">$</span>
+            <Input id="realloc-amount" name="amount" inputMode="decimal" placeholder="0.00" required />
+          </div>
         </div>
         <ReasonField id="realloc-reason" />
         <SubmitButton>Reallocate</SubmitButton>
@@ -168,12 +177,18 @@ function OverrideForm({ studentId }: { studentId: string }) {
       <form action={action} className="space-y-2">
         <input type="hidden" name="studentId" value={studentId} />
         <div className="flex gap-2">
-          <select name="mealType" className={selectClass} aria-label="Meal type" required>
-            <option value="">Meal…</option>
-            <option value="BREAKFAST">Breakfast</option>
-            <option value="LUNCH">Lunch</option>
-          </select>
-          <Input name="serviceDate" type="date" aria-label="Service date" />
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="override-meal">Meal</Label>
+            <select id="override-meal" name="mealType" className={selectClass} required>
+              <option value="">Meal...</option>
+              <option value="BREAKFAST">Breakfast</option>
+              <option value="LUNCH">Lunch</option>
+            </select>
+          </div>
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="override-date">Service date</Label>
+            <Input id="override-date" name="serviceDate" type="date" />
+          </div>
         </div>
         <ReasonField id="override-reason" />
         <SubmitButton>Record override</SubmitButton>

@@ -23,6 +23,7 @@ export default async function AdminLayout({
   if (isDistrictAdminPlus) nav.push({ label: "Notifications", href: "/admin/notifications" });
   if (isSuper) {
     nav.push({ label: "Config", href: "/admin/config" });
+    nav.push({ label: "Import", href: "/admin/import" });
     nav.push({ label: "Audit log", href: "/admin/audit" });
   }
 

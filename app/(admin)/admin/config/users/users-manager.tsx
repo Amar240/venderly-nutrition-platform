@@ -11,7 +11,7 @@ interface SchoolOpt { id: string; name: string }
 interface UserRow { id: string; email: string; name: string; role: string; schoolIds: string[]; disabled: boolean }
 const initial: ConfigState = { error: null, ok: false };
 const ROLES = ["CASHIER", "SCHOOL_STAFF", "DISTRICT_ADMIN", "SUPER_ADMIN"];
-const selectClass = "min-h-touch w-full rounded-control border border-border bg-surface-card px-3 py-2 text-base text-ink";
+const selectClass = "min-h-touch w-full rounded-control border border-control-border bg-surface-card px-3 py-2 text-base text-ink";
 
 function Feedback({ state }: { state: ConfigState }) {
   if (state.ok) return <span className="flex items-center gap-1 text-sm text-success"><CheckCircleIcon /> Saved</span>;

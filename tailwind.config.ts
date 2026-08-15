@@ -24,6 +24,7 @@ const config: Config = {
       surface: "var(--surface)",
       "surface-card": "var(--surface-card)",
       border: "var(--border)",
+      "control-border": "var(--control-border)",
       success: "var(--success)",
       "success-wash": "var(--success-wash)",
       warn: "var(--warn)",

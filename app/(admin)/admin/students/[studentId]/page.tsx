@@ -193,7 +193,7 @@ function Empty({ span }: { span: number }) {
   return (
     <tr>
       <td colSpan={span} className="px-4 py-6 text-center text-ink-muted">
-        None.
+        No records yet. New activity will appear here after it is recorded.
       </td>
     </tr>
   );

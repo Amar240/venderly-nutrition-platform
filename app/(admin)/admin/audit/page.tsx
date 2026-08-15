@@ -5,6 +5,7 @@ import { AuthError } from "@/server/auth/errors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Audit log viewer — SUPER ADMIN ONLY. searchAuditLog enforces the role; a
@@ -79,7 +80,14 @@ export default async function AuditViewerPage({
               </tr>
             ))}
             {entries.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-muted">No audit entries.</td></tr>
+              <tr>
+                <td colSpan={5} className="px-4 py-6">
+                  <EmptyState
+                    title="No audit entries match"
+                    body="Clear the filters or widen the date range. Sensitive actions will appear here after they run."
+                  />
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
