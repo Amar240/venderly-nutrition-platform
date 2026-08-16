@@ -11,6 +11,8 @@ import {
   resolveClaimMonth,
 } from "./claimFigures";
 import { arrearsReport, currentNegativeStreak } from "./arrears";
+import { correctionsInPeriod } from "./corrections";
+import { markExceptionReviewed } from "./editCheckReview";
 import { listTransactions, transactionsToCsv } from "./transactions";
 import { getMoneyHistoryForAccount } from "@/server/ledger/moneyHistory";
 import { searchAuditLog } from "@/server/audit/query";
@@ -47,6 +49,7 @@ afterAll(async () => {
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
     await prisma.pricingConfig.deleteMany({ where: { districtId: id } });
+    await prisma.editCheckReview.deleteMany({ where: { school: { districtId: id } } });
     await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
@@ -318,6 +321,78 @@ describe.skipIf(!dbUp)("edit-check report", () => {
   });
 });
 
+describe.skipIf(!dbUp)("edit-check exception review", () => {
+  async function staffUser(f: Fixture, role: "SCHOOL_STAFF" | "DISTRICT_ADMIN", schoolIds: string[]): Promise<AppSession> {
+    const user = await prisma.user.create({
+      data: {
+        email: `reviewer-${crypto.randomUUID()}@test.invalid`,
+        passwordHash: "test",
+        firstName: "Riley",
+        lastName: "Reviewer",
+        role,
+        districtId: f.districtId,
+      },
+    });
+    return { principalType: "staff", userId: user.id, role, districtId: f.districtId, schoolIds };
+  }
+
+  it("marks an exception reviewed and the join surfaces on the edit-check report", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    await prisma.mealEvent.createMany({
+      data: f.schoolAStudentIds.map((studentId) => ({
+        studentId,
+        schoolId: f.schoolAId,
+        serviceDate: today,
+        mealType: "BREAKFAST" as const,
+        priceCents: 0,
+      })),
+    });
+    const before = await editCheckReport(f.superAdmin, { from: today, to: today });
+    if (before.status !== "available") throw new Error("Expected configured edit check");
+    const exceptionBefore = before.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "BREAKFAST")!;
+    expect(exceptionBefore.needsAttention).toBe(true);
+    expect(exceptionBefore.reviewedAt).toBeNull();
+
+    const reviewer = await staffUser(f, "SCHOOL_STAFF", [f.schoolAId]);
+    await markExceptionReviewed(reviewer, {
+      schoolId: f.schoolAId,
+      serviceDate: today,
+      mealType: "BREAKFAST",
+      note: "Confirmed with the site — makeup breakfast day.",
+    });
+
+    const after = await editCheckReport(f.superAdmin, { from: today, to: today });
+    if (after.status !== "available") throw new Error("Expected configured edit check");
+    const exceptionAfter = after.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "BREAKFAST")!;
+    expect(exceptionAfter.reviewedAt).not.toBeNull();
+    expect(exceptionAfter.reviewedByName).toBe("Riley Reviewer");
+    expect(exceptionAfter.reviewNote).toBe("Confirmed with the site — makeup breakfast day.");
+
+    // Re-marking upserts rather than appending — this isn't ledger money.
+    await markExceptionReviewed(reviewer, { schoolId: f.schoolAId, serviceDate: today, mealType: "BREAKFAST" });
+    const afterAgain = await editCheckReport(f.superAdmin, { from: today, to: today });
+    if (afterAgain.status !== "available") throw new Error("Expected configured edit check");
+    expect(afterAgain.rows.find((row) => row.schoolId === f.schoolAId && row.mealType === "BREAKFAST")?.reviewNote).toBeNull();
+  });
+
+  it("rejects a reviewer outside the school's scope", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    const outsider = await staffUser(f, "DISTRICT_ADMIN", [f.schoolBId]);
+    await expect(
+      markExceptionReviewed(outsider, { schoolId: f.schoolAId, serviceDate: today, mealType: "BREAKFAST" }),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("rejects a cashier — reviewing is a staff-with-standing action, not a register action", async () => {
+    const f = await fresh();
+    await expect(
+      markExceptionReviewed(f.cashier, { schoolId: f.schoolAId, serviceDate: utcToday(), mealType: "BREAKFAST" }),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
+});
+
 describe.skipIf(!dbUp)("monthly claim figures", () => {
   it("defaults to the previous completed district month and falls back from future months", async () => {
     const f = await fresh();
@@ -492,6 +567,60 @@ describe.skipIf(!dbUp)("monthly claim figures", () => {
 
     await expect(monthlyClaimFigures(f.cashier, { month: today.toISOString().slice(0, 7) })).rejects.toBeInstanceOf(AuthError);
     await expect(monthlyClaimFigures(f.guardian, { month: today.toISOString().slice(0, 7) })).rejects.toBeInstanceOf(AuthError);
+  });
+});
+
+describe.skipIf(!dbUp)("corrections in period", () => {
+  it("returns corrections in range and in scope, with reasons and actors, excluding out-of-scope schools", async () => {
+    const f = await fresh();
+    const inRange = new Date(Date.UTC(2026, 5, 10));
+    const outOfRange = new Date(Date.UTC(2026, 3, 1));
+
+    const bStudent = await prisma.student.create({
+      data: { districtId: f.districtId, schoolId: f.schoolBId, studentNumber: `B-${crypto.randomUUID()}`, firstName: "Beta", lastName: "Kid", grade: "2", account: { create: {} } },
+    });
+
+    const inScope = await prisma.correctionCase.create({
+      data: {
+        situation: "WRONG_STUDENT",
+        studentId: f.schoolAStudentIds[0]!,
+        targetStudentId: f.schoolAStudentIds[1]!,
+        reason: "Charged the wrong sibling for lunch",
+        actorId: f.cashierId,
+        createdAt: inRange,
+      },
+    });
+    await prisma.correctionCase.create({
+      data: {
+        situation: "SNACK_RETURNED",
+        studentId: f.schoolAStudentIds[0]!,
+        reason: "Milk was never opened",
+        actorId: f.cashierId,
+        createdAt: outOfRange,
+      },
+    });
+    await prisma.correctionCase.create({
+      data: {
+        situation: "CHARGED_TWICE",
+        studentId: bStudent.id,
+        reason: "Double charge at the register",
+        createdAt: inRange,
+      },
+    });
+
+    const rows = await correctionsInPeriod(f.adminA, {
+      from: new Date(Date.UTC(2026, 5, 1)),
+      to: new Date(Date.UTC(2026, 5, 30)),
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: inScope.id,
+      situation: "WRONG_STUDENT",
+      reason: "Charged the wrong sibling for lunch",
+      actorName: "Casey Cashier",
+      targetStudentName: expect.stringContaining("Kid"),
+    });
   });
 });
 

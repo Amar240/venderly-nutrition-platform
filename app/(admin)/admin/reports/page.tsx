@@ -6,6 +6,7 @@ export default function ReportsHubPage() {
     { href: "/admin/reports/meals", title: "Daily meal counts", desc: "Meals served and extra meals, per school, by date and meal type." },
     { href: "/admin/reports/edit-check", title: "Check meal-count ceilings", desc: "Compare each school day with the maximum expected breakfast and lunch counts." },
     { href: "/admin/reports/claim-figures", title: "Monthly claim figures", desc: "School totals, checks, and free-meals claiming percentages for a month." },
+    { href: "/admin/reports/claim-pack", title: "Claim pack", desc: "A printable document for a state reviewer: totals, daily counts, the claiming math, exceptions, and corrections." },
     { href: "/admin/reports/arrears", title: "Money owed", desc: "Students whose meal account is below $0, how much is owed, and how long it has been owed." },
     { href: "/admin/reports/deposits", title: "Monthly money added", desc: "Payments, money moved, money given back, mistakes fixed, and totals per school." },
     { href: "/admin/reports/export", title: "Download money history", desc: "Download a filtered file of money in and out." },

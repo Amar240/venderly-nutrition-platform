@@ -273,3 +273,33 @@ Notification bodies carry money amounts and student names only — never a prici
 (Duplicate D-13 from a parallel session, merged into the entry above. Removed to keep one authoritative source per decision — see the D-13 above for the settled version.)
 
 A student without a `classId` at a roster-mode school is a data problem to surface to an admin, not a silent gap — roster mode should show them as unassigned rather than omitting them.
+
+## D-24 · The container health probe is a dedicated liveness endpoint, not `/`
+**Decided:** first AWS deployment · **Status:** settled
+
+`GET /api/health` returns 200 with a small JSON body, reads no session, and is not audited.
+
+Probing `/` does not work and is worth recording so nobody tries it again. The root route is an auth dispatcher that calls `redirect()`, and the App Router answers that with **307** — not 302. A load balancer configured for `200` (or even `200,302`) therefore marks a perfectly healthy container unhealthy and serves 503 forever. That failure mode is silent from the app side: the container logs a clean start and nothing else, because nothing ever reaches it.
+
+It is deliberately a **liveness** probe, not readiness: it reports 200 whenever the process can serve, and never fails on database reachability. A probe that returned 503 on a database blip would make the load balancer deregister the task and ECS recycle the container in a loop — restarting an app cannot fix a database outage, so that turns a recoverable incident into a much louder one.
+
+## D-25 · Startup fails closed when it cannot tell whether the roster is seeded
+**Decided:** first AWS deployment · **Status:** settled
+
+`docker-entrypoint.sh` seeds only on a **definitive** count of zero. The roster check reports through an exit code — 0 empty, 1 populated, 2 query failed — and state 2 aborts the container rather than seeding.
+
+The original version treated any error as "empty". Since `npm run seed` resets the database as its first action, a transient connection error between `migrate deploy` and the count — a Multi-AZ failover during a deploy is the realistic trigger, and the instance is Multi-AZ — would have silently destroyed live evaluator data and replaced it with a fresh seed. A container that refuses to start is a loud, recoverable failure; a container that quietly wipes the database is neither.
+
+## D-26 · The seed withholds credentials from deployed logs
+**Decided:** first AWS deployment · **Status:** settled
+
+The seed prints the shared demo password, each staff TOTP secret, and a live code when `NODE_ENV !== "production"`, and withholds all three otherwise. Emails, labels, and the POS fixture guide always print.
+
+In a container the seed runs from the entrypoint, so everything it prints lands in CloudWatch Logs and persists. Anyone with read access to the log group could lift a staff TOTP secret and bypass the second factor. The data is synthetic, so this is not a breach — but the pilot's own story is that staff sign-in is protected by MFA and that sensitive actions are audited, and MFA secrets sitting in a durable log is a fair objection for a district's IT reviewer to raise. Local runs are unaffected: `npm run logins` is still the way to get a code, and it now refuses to run under `NODE_ENV=production` for the same reason.
+
+## D-27 · Images are tagged by date and commit; never `latest`
+**Decided:** first AWS deployment · **Status:** settled
+
+`npm run deploy:image` builds and pushes as `<UTC date>-<git short sha>`, and refuses to build from a dirty working tree without an explicit confirmation.
+
+The ECR repository has tag immutability enabled, which is correct — it is what makes a rollback trustworthy. The consequence is that pushing an already-used tag is **rejected**, and the rejection is nearly invisible: every layer reports "Layer already exists" and only the final line says the tag could not be overwritten. A push that has actually failed reads as a success, and the service keeps deploying the original image no matter how many times it is redeployed. That cost one full debugging session, during which a correct code fix appeared not to work; the script exists so it cannot happen twice.

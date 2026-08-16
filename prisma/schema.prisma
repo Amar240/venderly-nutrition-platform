@@ -170,6 +170,7 @@ model School {
   notifications  Notification[]
   mealEvents     MealEvent[]
   classrooms     Classroom[]
+  editCheckReviews EditCheckReview[]
 
   @@unique([districtId, code])
 }
@@ -305,6 +306,7 @@ model User {
   completedCorrectionCases CorrectionCase[] @relation("CorrectionCaseCompletedBy")
   createdPricingConfigs    PricingConfig[]  @relation("PricingConfigCreatedBy")
   cancelledPricingConfigs  PricingConfig[]  @relation("PricingConfigCancelledBy")
+  editCheckReviews         EditCheckReview[]
 }
 
 model UserSchool {
@@ -393,6 +395,25 @@ model CorrectionCase {
   @@index([studentId])
   @@index([targetStudentId])
   @@index([status])
+}
+
+// Minimal review-tracking for edit-check exceptions (Stage D item 5, the claim
+// pack). One row per exception instance (schoolId+serviceDate+mealType, the
+// same natural key EditCheckRow is computed on). Not ledger money — re-marking
+// upserts rather than appending.
+model EditCheckReview {
+  id               String   @id @default(cuid())
+  schoolId         String
+  serviceDate      DateTime @db.Date
+  mealType         MealType
+  reviewedByUserId String
+  reviewedAt       DateTime @default(now())
+  note             String?
+
+  school     School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  reviewedBy User   @relation(fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, serviceDate, mealType])
 }
 
 // ---------------------------------------------------------------------------

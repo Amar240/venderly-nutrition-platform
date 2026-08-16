@@ -1340,7 +1340,22 @@ async function main() {
   console.log(`Roster-freshness fixture: latest student list is 9 days old`);
   console.log(`Negative-balance fixtures: ${deepSummary.negativeBalanceCount} students`);
   console.log("Automatic top-up fixture: Marcus adds $10.00 below $8.00, monthly limit $30.00");
-  console.log(`\nShared demo password (all accounts): ${DEMO_PASSWORD}`);
+  /*
+   * Secrets are printed for LOCAL use only. In a deployed container this seed
+   * runs from the entrypoint and everything it prints lands in CloudWatch Logs
+   * and stays there — so the shared password, the staff TOTP secrets, and a
+   * live code would sit in a durable log that anyone with read access to the
+   * log group could lift, defeating the second factor entirely. The data is
+   * synthetic, so this is not a breach; it would still hand a district's IT
+   * reviewer a fair objection to the product's own MFA story.
+   */
+  const secretsArePrintable = process.env.NODE_ENV !== "production";
+
+  if (secretsArePrintable) {
+    console.log(`\nShared demo password (all accounts): ${DEMO_PASSWORD}`);
+  } else {
+    console.log("\nShared demo password: withheld from deployed logs — run `npm run logins` locally.");
+  }
   console.log("\nEvaluator logins:");
   console.log("  Guardian — guardian@woodbridge.demo — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
   console.log("  Cashier  — cashier@woodbridge.demo");
@@ -1352,8 +1367,18 @@ async function main() {
   console.log("\nStaff sign-in (require 6-digit authenticator code):");
   for (const c of staffCreds) {
     console.log(`  ${c.label.padEnd(11)} — ${c.email}`);
-    console.log(`      TOTP secret: ${c.totpSecret}`);
-    console.log(`      code right now: ${c.totpNow}  (30s window — add the secret to an authenticator app)`);
+    if (secretsArePrintable) {
+      console.log(`      TOTP secret: ${c.totpSecret}`);
+      console.log(`      code right now: ${c.totpNow}  (30s window — add the secret to an authenticator app)`);
+    } else {
+      console.log("      TOTP secret: withheld from deployed logs");
+    }
+  }
+  if (!secretsArePrintable) {
+    console.log(
+      "\n  To enrol an authenticator for a deployed environment, read the secret\n" +
+        "  directly from the database rather than from these logs.",
+    );
   }
   console.log("==============================================\n");
 }

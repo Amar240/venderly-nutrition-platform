@@ -12,6 +12,7 @@
     "fixtures:generate": "tsx fixtures/generate.ts",
     "demo:reset": "npm run seed && npm run fixtures:generate",
     "logins": "tsx scripts/logins.ts",
+    "deploy:image": "bash scripts/deploy-image.sh",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "test": "vitest run",

@@ -3,7 +3,8 @@ import { AlertTriangleIcon, CheckCircleIcon, InfoIcon } from "@/components/icons
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TRUST_COPY } from "@/lib/presentation-labels";
+import { TRUST_COPY, formatBps, formatClaimRate } from "@/lib/presentation-labels";
+import { DEMO_SCALE_DISCLOSURE } from "@/lib/prototype";
 import { getAppSession } from "@/server/auth/session";
 import { monthlyClaimFigures } from "@/server/reports/claimFigures";
 
@@ -18,20 +19,6 @@ function mealLabel(mealType: "BREAKFAST" | "LUNCH"): string {
 function mealWord(mealType: "BREAKFAST" | "LUNCH", count: number): string {
   const base = mealType === "BREAKFAST" ? "breakfast" : "lunch";
   return count === 1 ? base : `${base}es`;
-}
-
-function formatBps(value: number, digits = 2): string {
-  return (value / 100).toLocaleString("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-}
-
-function formatClaimRate(units: number, digits = 1): string {
-  return (units / 1000).toLocaleString("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
 }
 
 export default async function ClaimFiguresPage({
@@ -75,7 +62,7 @@ export default async function ClaimFiguresPage({
                 {TRUST_COPY.claimFigures}
               </p>
               <p>
-                This prototype contains 200 synthetic students, so these totals are not district-scale figures.
+                {DEMO_SCALE_DISCLOSURE}
               </p>
             </div>
           </div>
@@ -93,6 +80,12 @@ export default async function ClaimFiguresPage({
                       {item.claimedCount.toLocaleString()} {mealWord(item.mealType, item.claimedCount)}. The most you&apos;d expect is{" "}
                       {item.ceiling.toLocaleString()}.
                     </p>
+                    {item.reviewedAt ? (
+                      <p className="mt-1 text-ink-muted">
+                        Reviewed by {item.reviewedByName} · {dateKey(item.reviewedAt)}
+                        {item.reviewNote ? ` — "${item.reviewNote}"` : ""}
+                      </p>
+                    ) : null}
                     <Link
                       href={`/admin/reports/edit-check?from=${dateKey(item.serviceDate)}&to=${dateKey(item.serviceDate)}`}
                       className="mt-2 inline-flex min-h-touch items-center text-sm font-medium text-ink hover:underline"

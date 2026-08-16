@@ -7,6 +7,7 @@ import { TRUST_COPY } from "@/lib/presentation-labels";
 import { getAppSession } from "@/server/auth/session";
 import { editCheckReport } from "@/server/reports/editCheck";
 import { districtToday } from "@/server/time/district";
+import { markExceptionReviewedAction } from "./actions";
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -103,6 +104,7 @@ export default async function EditCheckReportPage({
                   <th scope="col" className="px-4 py-3 text-right font-medium">Meals recorded</th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">Maximum expected</th>
                   <th scope="col" className="px-4 py-3 font-medium">Check</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,11 +127,37 @@ export default async function EditCheckReportPage({
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      {!row.needsAttention ? (
+                        <span className="text-ink-muted">—</span>
+                      ) : row.reviewedAt ? (
+                        <p className="text-ink-muted">
+                          Reviewed by {row.reviewedByName} · {dateKey(row.reviewedAt)}
+                          {row.reviewNote ? ` — "${row.reviewNote}"` : ""}
+                        </p>
+                      ) : (
+                        <form action={markExceptionReviewedAction} className="flex flex-wrap items-end gap-2">
+                          <input type="hidden" name="schoolId" value={row.schoolId} />
+                          <input type="hidden" name="serviceDate" value={dateKey(row.serviceDate)} />
+                          <input type="hidden" name="mealType" value={row.mealType} />
+                          <Label htmlFor={`note-${row.schoolId}-${dateKey(row.serviceDate)}-${row.mealType}`} className="sr-only">
+                            Review note
+                          </Label>
+                          <Input
+                            id={`note-${row.schoolId}-${dateKey(row.serviceDate)}-${row.mealType}`}
+                            name="note"
+                            placeholder="Note (optional)"
+                            className="w-40"
+                          />
+                          <Button type="submit" variant="secondary">Mark reviewed</Button>
+                        </form>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {report.rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">
+                    <td colSpan={8} className="px-4 py-6 text-center text-ink-muted">
                       Choose a date range with recorded meals to check the ceilings.
                     </td>
                   </tr>

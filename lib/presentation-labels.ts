@@ -10,6 +10,31 @@ export const TRUST_COPY = {
   mayBeNothing: "This may be nothing.",
 };
 
+export function formatBps(value: number, digits = 2): string {
+  return (value / 100).toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+export function formatClaimRate(units: number, digits = 1): string {
+  return (units / 1000).toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+export function correctionSituationLabel(situation: string): string {
+  const labels: Record<string, string> = {
+    CHARGED_TWICE: "Charged twice for a snack",
+    WRONG_STUDENT: "Wrong student charged",
+    SNACK_RETURNED: "Snack was returned",
+    SOMETHING_ELSE: "Corrected after review",
+    DISTRICT_DECISION: "District decision",
+  };
+  return labels[situation] ?? "Correction";
+}
+
 export function moneyActivityLabel(type: string): string {
   const labels: Record<string, string> = {
     DEPOSIT: "Payment",
@@ -224,6 +249,8 @@ export function auditActionLabel(action: string): string {
     CORRECTION_FOLLOW_UP_REQUIRED: "Marked a charge as waiting",
     CORRECTION_FOLLOW_UP_COMPLETED: "Finished a waiting charge",
     STUDENT_VIEW: "Viewed a student",
+    EDIT_CHECK_EXCEPTION_REVIEWED: "Reviewed a meal-count exception",
+    CLAIM_PACK_GENERATED: "Printed the claim pack",
   };
   return labels[action] ?? "Staff activity";
 }

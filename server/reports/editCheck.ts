@@ -19,6 +19,9 @@ export interface EditCheckRow {
   claimedCount: number;
   ceiling: number;
   needsAttention: boolean;
+  reviewedAt: Date | null;
+  reviewedByName: string | null;
+  reviewNote: string | null;
 }
 
 export interface AvailableEditCheckReport {
@@ -57,7 +60,7 @@ export async function editCheckReport(
   range: { from: Date; to: Date },
 ): Promise<EditCheckReport> {
   const scope = await reportScope(session);
-  const [district, mealRows, enrollmentGroups] = await Promise.all([
+  const [district, mealRows, enrollmentGroups, reviews] = await Promise.all([
     prisma.district.findUnique({
       where: { id: scope.districtId },
       select: { name: true, stateAttendanceFactorBps: true, stateAttendanceFactorProvenance: true },
@@ -72,6 +75,13 @@ export async function editCheckReport(
         enrollmentStatus: "ACTIVE",
       },
       _count: { _all: true },
+    }),
+    prisma.editCheckReview.findMany({
+      where: {
+        schoolId: { in: scope.schools.map((school) => school.id) },
+        serviceDate: { gte: range.from, lte: range.to },
+      },
+      include: { reviewedBy: { select: { firstName: true, lastName: true } } },
     }),
   ]);
 
@@ -89,12 +99,22 @@ export async function editCheckReport(
     enrollmentGroups.map((group) => [group.schoolId, group._count._all]),
   );
 
+  const reviewKey = (schoolId: string, serviceDate: Date, mealType: MealType) =>
+    `${schoolId}|${serviceDate.toISOString().slice(0, 10)}|${mealType}`;
+  const reviewByKey = new Map(
+    reviews.map((review) => [
+      reviewKey(review.schoolId, review.serviceDate, review.mealType),
+      review,
+    ]),
+  );
+
   const rows = mealRows.map((row) => {
     const activeEnrollment = enrollmentBySchool.get(row.schoolId) ?? 0;
     const ceiling = editCheckCeiling(
       activeEnrollment,
       factorBps,
     );
+    const review = reviewByKey.get(reviewKey(row.schoolId, row.serviceDate, row.mealType));
     return {
       schoolId: row.schoolId,
       schoolName: row.schoolName,
@@ -104,6 +124,9 @@ export async function editCheckReport(
       claimedCount: row.served,
       ceiling,
       needsAttention: row.served > ceiling,
+      reviewedAt: review?.reviewedAt ?? null,
+      reviewedByName: review ? `${review.reviewedBy.firstName} ${review.reviewedBy.lastName}` : null,
+      reviewNote: review?.note ?? null,
     };
   });
 
