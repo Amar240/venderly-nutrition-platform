@@ -2,14 +2,20 @@ import { PrismaClient } from "@prisma/client";
 import { describe, it, expect, afterAll } from "vitest";
 import { authenticator } from "otplib";
 import { createItem, updateItem, setItemActive } from "./items";
-import { updatePricingConfig } from "./pricing";
+import {
+  cancelPricingConfigVersion,
+  createPricingConfigVersion,
+  getPricingConfigurationView,
+  updateComplianceSettings,
+  updatePricingConfig,
+} from "./pricing";
 import { createSchool } from "./schools";
 import { createStaffUser, setUserDisabled, updateStaffUser } from "./users";
 import { authenticate } from "@/server/auth/authenticate";
 import { resetIpLimiter } from "@/server/auth/rateLimit";
 import { AuthError } from "@/server/auth/errors";
 import { ConfigError } from "./items";
-import type { AppSession } from "@/server/auth/types";
+import type { AppSession, StaffPrincipal } from "@/server/auth/types";
 
 /**
  * Phase 5c — configuration screens. Super-admin self-guard, audit before/after,
@@ -45,8 +51,8 @@ interface Fixture {
   districtId: string;
   schoolId: string;
   studentId: string;
-  superAdmin: AppSession;
-  districtAdmin: AppSession;
+  superAdmin: StaffPrincipal;
+  districtAdmin: StaffPrincipal;
 }
 
 async function fresh(): Promise<Fixture> {
@@ -54,10 +60,16 @@ async function fresh(): Promise<Fixture> {
   districtIds.push(district.id);
   const school = await prisma.school.create({ data: { districtId: district.id, name: "S", code: `T${Math.random().toString(36).slice(2, 6)}` } });
   const student = await prisma.student.create({ data: { districtId: district.id, schoolId: school.id, studentNumber: `S-${crypto.randomUUID()}`, firstName: "K", lastName: "id", grade: "3", account: { create: { balanceCents: 0 } } } });
+  const superUser = await prisma.user.create({
+    data: { districtId: district.id, email: `super-${crypto.randomUUID()}@test.invalid`, passwordHash: "x", firstName: "Super", lastName: "User", role: "SUPER_ADMIN" },
+  });
+  const districtUser = await prisma.user.create({
+    data: { districtId: district.id, email: `district-${crypto.randomUUID()}@test.invalid`, passwordHash: "x", firstName: "District", lastName: "User", role: "DISTRICT_ADMIN" },
+  });
   return {
     districtId: district.id, schoolId: school.id, studentId: student.id,
-    superAdmin: { principalType: "staff", userId: "super", role: "SUPER_ADMIN", districtId: district.id, schoolIds: [] },
-    districtAdmin: { principalType: "staff", userId: "dadmin", role: "DISTRICT_ADMIN", districtId: district.id, schoolIds: [school.id] },
+    superAdmin: { principalType: "staff", userId: superUser.id, role: "SUPER_ADMIN", districtId: district.id, schoolIds: [] },
+    districtAdmin: { principalType: "staff", userId: districtUser.id, role: "DISTRICT_ADMIN", districtId: district.id, schoolIds: [school.id] },
   };
 }
 
@@ -86,7 +98,7 @@ describe.skipIf(!dbUp)("item catalog", () => {
 });
 
 describe.skipIf(!dbUp)("pricing config", () => {
-  it("updates config + audits before/after, with no per-student tier in the payload", async () => {
+  it("creates dated versions + audits before/after, with no per-student tier in the payload", async () => {
     const f = await fresh();
     const after = await updatePricingConfig(f.superAdmin, {
       schoolId: null, cepEnabled: false,
@@ -96,11 +108,82 @@ describe.skipIf(!dbUp)("pricing config", () => {
     });
     expect(after.lunchPaidCents).toBe(325);
     expect(after.lowBalanceMealsThreshold).toBe(5);
-    const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "CONFIG_PRICING_UPDATE" } });
+    expect(after.createdByUserId).toBe(f.superAdmin.userId);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "CONFIG_PRICING_VERSION_CREATE" } });
     const serialized = JSON.stringify(audit.afterJson).toLowerCase();
     expect(serialized).not.toContain("studentpricing");
     expect(serialized).not.toContain("pricetier");
-    await expect(updatePricingConfig(f.districtAdmin, { schoolId: null, cepEnabled: true, breakfastFreeCents: 0, breakfastReducedCents: 0, breakfastPaidCents: 0, lunchFreeCents: 0, lunchReducedCents: 0, lunchPaidCents: 0, lowBalanceThresholdCents: 0, lowBalanceMealsThreshold: 0 })).rejects.toBeInstanceOf(AuthError);
+    const districtVersion = await updatePricingConfig(f.districtAdmin, { schoolId: null, cepEnabled: true, breakfastFreeCents: 0, breakfastReducedCents: 0, breakfastPaidCents: 0, lunchFreeCents: 0, lunchReducedCents: 0, lunchPaidCents: 0, lowBalanceThresholdCents: 0, lowBalanceMealsThreshold: 0 });
+    expect(districtVersion.createdByUserId).toBe(f.districtAdmin.userId);
+    expect(await prisma.pricingConfig.count({ where: { districtId: f.districtId } })).toBe(2);
+  });
+
+  it("shows only district-wide aggregate price counts", async () => {
+    const f = await fresh();
+    await prisma.studentPricing.create({ data: { studentId: f.studentId, tier: "PAID", source: "DISTRICT_EXPORT" } });
+    await prisma.student.create({
+      data: { districtId: f.districtId, schoolId: f.schoolId, studentNumber: `S-${crypto.randomUUID()}`, firstName: "No", lastName: "Row", grade: "3" },
+    });
+    const view = await getPricingConfigurationView(f.districtAdmin);
+    expect(view.counts).toMatchObject({
+      activeStudentCount: 2,
+      noCostStudentCount: 1,
+      lowerPriceStudentCount: 0,
+      fullPriceStudentCount: 1,
+    });
+    expect(JSON.stringify(view.counts).toLowerCase()).not.toContain("tier");
+  });
+
+  it("allows one future price version and cancellation before it starts", async () => {
+    const f = await fresh();
+    const future = new Date("2099-09-01T00:00:00.000Z");
+    const version = await createPricingConfigVersion(f.districtAdmin, {
+      schoolId: null,
+      cepEnabled: false,
+      breakfastFreeCents: 0,
+      breakfastReducedCents: 30,
+      breakfastPaidCents: 200,
+      lunchFreeCents: 0,
+      lunchReducedCents: 40,
+      lunchPaidCents: 325,
+      lowBalanceThresholdCents: 1000,
+      lowBalanceMealsThreshold: 5,
+      effectiveFrom: future,
+      reason: "Next year prices approved.",
+    });
+    await expect(createPricingConfigVersion(f.districtAdmin, {
+      schoolId: null,
+      cepEnabled: true,
+      breakfastFreeCents: 0,
+      breakfastReducedCents: 0,
+      breakfastPaidCents: 0,
+      lunchFreeCents: 0,
+      lunchReducedCents: 0,
+      lunchPaidCents: 0,
+      lowBalanceThresholdCents: 1000,
+      lowBalanceMealsThreshold: 5,
+      effectiveFrom: future,
+      reason: "Another future change.",
+    })).rejects.toBeInstanceOf(ConfigError);
+    await cancelPricingConfigVersion(f.superAdmin, version.id, "Board changed direction.");
+    const cancelled = await prisma.pricingConfig.findUniqueOrThrow({ where: { id: version.id } });
+    expect(cancelled.cancelledAt).not.toBeNull();
+    expect(cancelled.cancelledByUserId).toBe(f.superAdmin.userId);
+  });
+
+  it("updates district percentages with provenance and audit evidence", async () => {
+    const f = await fresh();
+    await updateComplianceSettings(f.districtAdmin, {
+      identifiedStudentPercentageBps: 5482,
+      stateAttendanceFactorBps: 9380,
+      stateAttendanceFactorProvenance: "FNS_FEDERAL_DEFAULT",
+      reason: "District records checked.",
+    });
+    const district = await prisma.district.findUniqueOrThrow({ where: { id: f.districtId } });
+    expect(district.identifiedStudentPercentageBps).toBe(5482);
+    expect(district.stateAttendanceFactorProvenance).toBe("FNS_FEDERAL_DEFAULT");
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "CONFIG_COMPLIANCE_SETTINGS_UPDATE", districtId: f.districtId } });
+    expect(audit.reason).toBe("District records checked.");
   });
 });
 

@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/client";
 import { requireRole, canAccessSchool } from "@/server/auth/rbac";
 import type { AppSession } from "@/server/auth/types";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { triggerAutomaticTopUpsForDebit } from "@/server/household/autoTopUp";
 import { districtToday } from "@/server/time/district";
 import { findLiveServedStudentIds } from "./mealCounts";
 import { lockCashierAndChooseRecordedAt, MealStudentWriteError, writeMealsAtomic } from "./recordMealsAtomic";
@@ -97,6 +98,11 @@ export async function recordMeal(input: {
         notification.debitCents,
         notification.thresholdCents,
       );
+      await triggerAutomaticTopUpsForDebit({
+        studentId: notification.studentId,
+        debitCents: notification.debitCents,
+        triggeringLedgerEntryId: notification.ledgerEntryId,
+      });
     } catch (error) {
       // The meal is already committed; notification delivery must not make the
       // cashier believe it failed and record the child a second time.

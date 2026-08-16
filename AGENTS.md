@@ -37,6 +37,16 @@ Ask about genuine conflicts and missing external facts. Do not ask about anythin
 
 **Still worth asking about:** a real conflict between two settled decisions, an external fact we cannot derive (a state agency's published figure, a district policy), or a requirement that would require changing something already settled.
 
+## What every completion summary must contain
+
+1. **What changed** — features and the files that hold them.
+2. **What I decided myself** — every default applied from the table above, and any fixture value chosen. One line each. If you decided nothing, say so explicitly.
+3. **What I assumed** — anything taken as true without verifying it.
+4. **What I could not do** — skipped work, known gaps, anything left failing.
+5. **Verification** — what was run and what passed.
+
+Section 2 is the one that matters most. A default applied silently is indistinguishable from a defect until someone reads the code.
+
 ## Non-negotiable, restated
 
 - Money is integer cents. The ledger is append-only — no UPDATE, no DELETE, ever. Corrections are new offsetting entries linked to the original.

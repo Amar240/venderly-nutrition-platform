@@ -4,6 +4,7 @@ import type { AppSession } from "@/server/auth/types";
 import { deriveBalanceCents, LedgerError } from "@/server/ledger/ledger";
 import { lockAccountsForUpdate, assertCanDebit } from "@/server/ledger/balanceGuard";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { triggerAutomaticTopUpsForDebit } from "@/server/household/autoTopUp";
 import { resolveLowBalanceThresholdCents } from "@/server/pricing/config";
 import { writeAudit } from "@/server/audit/log";
 
@@ -66,8 +67,9 @@ export async function recordItemSale(input: {
   const price = item.priceCents;
   const accountId = student.account.id;
 
+  let debitLedgerEntryId: string;
   try {
-    await prisma.$transaction(async (tx) => {
+    debitLedgerEntryId = await prisma.$transaction(async (tx) => {
       // Shared D-7 guard: lock the row, then assert funds before writing.
       await lockAccountsForUpdate(tx, [accountId]);
       await assertCanDebit(tx, accountId, price); // throws INSUFFICIENT_FUNDS
@@ -92,6 +94,7 @@ export async function recordItemSale(input: {
       });
       const balance = await deriveBalanceCents(accountId, tx);
       await tx.account.update({ where: { id: accountId }, data: { balanceCents: balance } });
+      return debit.id;
     });
   } catch (err) {
     if (err instanceof LedgerError && err.code === "INSUFFICIENT_FUNDS") {
@@ -103,6 +106,11 @@ export async function recordItemSale(input: {
   // Notify the guardian(s) if this charge just crossed the low-balance line.
   const threshold = await resolveLowBalanceThresholdCents(student.districtId, student.schoolId);
   await notifyIfLowBalanceCrossed(student.id, price, threshold);
+  await triggerAutomaticTopUpsForDebit({
+    studentId: student.id,
+    debitCents: price,
+    triggeringLedgerEntryId: debitLedgerEntryId,
+  });
 
   return { status: "recorded", studentName: `${student.firstName} ${student.lastName}` };
 }

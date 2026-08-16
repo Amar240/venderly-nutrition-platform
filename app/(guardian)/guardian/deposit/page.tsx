@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAppSession } from "@/server/auth/session";
 import { getHousehold } from "@/server/household/household";
 import { DepositForm } from "./deposit-form";
+import { LinkButton } from "@/components/ui/link-button";
 
 /**
  * Deposit entry. Guardians may fund one child or split across several. The
@@ -31,6 +32,17 @@ export default async function DepositPage() {
             schoolName: c.schoolName,
           }))}
         />
+      </div>
+
+      <div className="mt-6 rounded-card border border-border bg-surface-card p-4">
+        <h2 className="text-base font-medium text-ink">Automatic top-up</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Set a rule for a child so money is added after the account drops below
+          the amount you choose.
+        </p>
+        <LinkButton href="/guardian/top-up" variant="secondary" className="mt-3">
+          Manage automatic top-up
+        </LinkButton>
       </div>
     </section>
   );

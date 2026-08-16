@@ -16,6 +16,7 @@ export interface LowMoneyNotificationCandidate {
   studentId: string;
   debitCents: number;
   thresholdCents: number;
+  ledgerEntryId: string;
 }
 
 export class MealStudentWriteError extends Error {
@@ -72,7 +73,7 @@ export async function writeMealsAtomic(
     try {
       let config = configs.get(student.schoolId);
       if (!config) {
-        config = await getResolvedPricingConfig(student.districtId, student.schoolId, tx);
+        config = await getResolvedPricingConfig(student.districtId, student.schoolId, input.serviceDate, tx);
         configs.set(student.schoolId, config);
       }
       const tier = await getStudentTier(student.id, tx);
@@ -141,6 +142,7 @@ export async function writeMealsAtomic(
           studentId: entry.student.id,
           debitCents: entry.priceCents,
           thresholdCents: entry.thresholdCents,
+          ledgerEntryId: debit.id,
         });
       }
     } catch (error) {

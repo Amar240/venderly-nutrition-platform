@@ -4,6 +4,7 @@ import { dailyMealCounts } from "@/server/reports/mealCounts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { TRUST_COPY } from "@/lib/presentation-labels";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -28,7 +29,7 @@ export default async function MealCountsReport({
       <Link href="/admin/reports" className="text-sm text-ink-muted hover:text-ink">← Reports</Link>
       <h1 className="mt-2 text-2xl font-medium text-ink">Daily meal counts</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Meals served and extra meals are counted separately, never summed. These are your figures to check and submit. This system doesn&apos;t file claims.
+        Meals served and extra meals are counted separately, never summed. {TRUST_COPY.claimFigures}
       </p>
 
       <form action="/admin/reports/meals" method="get" className="mt-4 flex flex-wrap items-end gap-2">

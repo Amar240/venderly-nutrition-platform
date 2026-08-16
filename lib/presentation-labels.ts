@@ -5,7 +5,8 @@ export const TRUST_COPY = {
     "Meals already served keep the price they were charged at. Changing these numbers never changes anything in the past.",
   ignoredColumns:
     "3 columns were ignored: date of birth, race, and gender. This system doesn't store them.",
-  claimFigures: "These are your figures to check and submit. This system doesn't file claims.",
+  claimFigures:
+    "These are your figures to check and submit. This system doesn't file claims and isn't your official counting record — PCS still is, unless the district decides otherwise.",
   mayBeNothing: "This may be nothing.",
 };
 
@@ -198,6 +199,9 @@ export function auditActionLabel(action: string): string {
     IMPORT_COMMITTED: "Uploaded student list",
     IMPORT_CONFIRMED_DEACTIVATION: "Marked many students as left",
     CONFIG_PRICING_UPDATE: "Changed meal prices",
+    CONFIG_PRICING_VERSION_CREATE: "Changed meal prices",
+    CONFIG_PRICING_VERSION_CANCEL: "Cancelled scheduled meal prices",
+    CONFIG_COMPLIANCE_SETTINGS_UPDATE: "Changed district claim settings",
     CONFIG_CHARGE_POLICY_UPDATE: "Changed charge policy",
     CONFIG_SCHOOL_CREATE: "Added a school",
     CONFIG_SCHOOL_UPDATE: "Changed a school",

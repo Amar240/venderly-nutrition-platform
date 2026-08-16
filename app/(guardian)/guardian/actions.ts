@@ -12,9 +12,16 @@ import { requireGuardianOf } from "@/server/auth/rbac";
 import { writeAudit } from "@/server/audit/log";
 import { AuthError } from "@/server/auth/errors";
 import { notifyTransferCompleted, notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import {
+  AutomaticTopUpError,
+  cancelAutomaticTopUpRule,
+  saveAutomaticTopUpRule,
+  triggerAutomaticTopUpsForDebit,
+} from "@/server/household/autoTopUp";
 import { getResolvedPricingConfig } from "@/server/pricing/config";
 import { lowBalanceThresholdForChild } from "@/server/household/balance";
 import { prisma } from "@/server/db/client";
+import { districtToday } from "@/server/time/district";
 
 export interface DepositState {
   error: string | null;
@@ -66,6 +73,11 @@ export async function startDepositAction(
 
 export interface TransferState {
   error: string | null;
+}
+
+export interface AutoTopUpState {
+  error: string | null;
+  saved?: boolean;
 }
 
 /**
@@ -123,7 +135,11 @@ export async function transferAction(
           select: { districtId: true, schoolId: true },
         });
         if (source) {
-          const config = await getResolvedPricingConfig(source.districtId, source.schoolId);
+          const config = await getResolvedPricingConfig(
+            source.districtId,
+            source.schoolId,
+            await districtToday(source.districtId),
+          );
           const threshold = lowBalanceThresholdForChild({
             balanceCents: fromChild.balanceCents,
             lunchPriceCents: fromChild.lunchPriceCents,
@@ -131,6 +147,11 @@ export async function transferAction(
             lowBalanceThresholdCents: config.lowBalanceThresholdCents,
           });
           await notifyIfLowBalanceCrossed(fromStudentId, cents, threshold);
+          await triggerAutomaticTopUpsForDebit({
+            studentId: fromStudentId,
+            debitCents: cents,
+            triggeringLedgerEntryId: result.debit.id,
+          });
         }
       }
     }
@@ -146,4 +167,66 @@ export async function transferAction(
 
   revalidatePath("/guardian");
   redirect(`/guardian/child/${fromStudentId}?moved=1`);
+}
+
+export async function saveAutoTopUpAction(
+  _prev: AutoTopUpState,
+  formData: FormData,
+): Promise<AutoTopUpState> {
+  const session = await getAppSession();
+  if (!session || session.principalType !== "guardian") {
+    return { error: "You've been signed out. Sign in again to continue." };
+  }
+
+  const studentId = String(formData.get("studentId") ?? "");
+  const triggerBalanceCents = parseDollarsToCents(String(formData.get("triggerBalance") ?? ""));
+  const topUpAmountCents = parseDollarsToCents(String(formData.get("topUpAmount") ?? ""));
+  const monthlyCeilingCents = parseDollarsToCents(String(formData.get("monthlyCeiling") ?? ""));
+
+  if (triggerBalanceCents === null || topUpAmountCents === null || monthlyCeilingCents === null) {
+    return { error: "One amount does not look right. Enter dollars and cents." };
+  }
+
+  try {
+    await saveAutomaticTopUpRule(session, {
+      studentId,
+      triggerBalanceCents,
+      topUpAmountCents,
+      monthlyCeilingCents,
+    });
+  } catch (error) {
+    if (error instanceof AutomaticTopUpError) {
+      return { error: error.message };
+    }
+    if (error instanceof AuthError) {
+      return { error: "You don't have access to that child. Ask the district to check your household link." };
+    }
+    throw error;
+  }
+
+  revalidatePath("/guardian");
+  revalidatePath("/guardian/top-up");
+  return { error: null, saved: true };
+}
+
+export async function cancelAutoTopUpAction(
+  _prev: AutoTopUpState,
+  formData: FormData,
+): Promise<AutoTopUpState> {
+  const session = await getAppSession();
+  if (!session || session.principalType !== "guardian") {
+    return { error: "You've been signed out. Sign in again to continue." };
+  }
+  const ruleId = String(formData.get("ruleId") ?? "");
+  try {
+    await cancelAutomaticTopUpRule(session, ruleId);
+  } catch (error) {
+    if (error instanceof AutomaticTopUpError || error instanceof AuthError) {
+      return { error: "Automatic top-up could not be changed. Refresh the page and try again." };
+    }
+    throw error;
+  }
+  revalidatePath("/guardian");
+  revalidatePath("/guardian/top-up");
+  return { error: null, saved: true };
 }

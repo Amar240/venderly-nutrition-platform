@@ -31,6 +31,12 @@ function formatPercent(basisPoints: number): string {
   });
 }
 
+function percentageSourceLabel(provenance: "FNS_FEDERAL_DEFAULT" | "APPROVED_LOCAL"): string {
+  return provenance === "FNS_FEDERAL_DEFAULT"
+    ? "FNS federal default"
+    : "approved Delaware or Woodbridge value";
+}
+
 export default async function EditCheckReportPage({
   searchParams,
 }: {
@@ -80,7 +86,7 @@ export default async function EditCheckReportPage({
             <InfoIcon className="mt-1 shrink-0 text-brand" />
             <div className="space-y-2 text-sm">
               <p>
-                Ceilings use the {formatPercent(report.factorBps)}% FNS federal default and are rounded down to a whole meal. Woodbridge should confirm whether Delaware or the district has an approved local percentage to use instead.
+                Ceilings use the {formatPercent(report.factorBps)}% {percentageSourceLabel(report.factorProvenance)} and are rounded down to a whole meal. Woodbridge should confirm whether Delaware or the district has an approved local percentage to use instead.
               </p>
               <p>{TRUST_COPY.claimFigures}</p>
             </div>

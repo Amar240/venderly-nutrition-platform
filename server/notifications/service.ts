@@ -53,6 +53,49 @@ export async function notifyTransferCompleted(input: {
   });
 }
 
+/** Automatic top-up completed through the payment boundary. */
+export async function notifyAutomaticTopUpCompleted(input: {
+  guardianId: string;
+  studentId: string;
+  amountCents: number;
+}): Promise<void> {
+  const student = await prisma.student.findUnique({
+    where: { id: input.studentId },
+    select: { firstName: true, lastName: true, districtId: true, schoolId: true },
+  });
+  if (!student) return;
+  await notificationPort.notify({
+    guardianId: input.guardianId,
+    districtId: student.districtId,
+    schoolId: student.schoolId,
+    type: "AUTO_TOP_UP_COMPLETED",
+    title: "Automatic top-up added money",
+    body: `${formatCents(input.amountCents)} was automatically added for ${student.firstName} ${student.lastName}.`,
+  });
+}
+
+/** Automatic top-up was due, but the family-set monthly ceiling stopped it. */
+export async function notifyAutomaticTopUpSkipped(input: {
+  guardianId: string;
+  studentId: string;
+  amountCents: number;
+  ceilingCents: number;
+}): Promise<void> {
+  const student = await prisma.student.findUnique({
+    where: { id: input.studentId },
+    select: { firstName: true, lastName: true, districtId: true, schoolId: true },
+  });
+  if (!student) return;
+  await notificationPort.notify({
+    guardianId: input.guardianId,
+    districtId: student.districtId,
+    schoolId: student.schoolId,
+    type: "AUTO_TOP_UP_SKIPPED",
+    title: "Automatic top-up did not run",
+    body: `Automatic top-up did not add ${formatCents(input.amountCents)} for ${student.firstName} ${student.lastName} because your ${formatCents(input.ceilingCents)} monthly limit was reached.`,
+  });
+}
+
 /**
  * Notify the student's guardian(s) ONLY when a debit just CROSSED the low-balance
  * threshold (before ≥ threshold && after < threshold). `after` is derived from

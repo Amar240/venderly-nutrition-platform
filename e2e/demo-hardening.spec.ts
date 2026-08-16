@@ -14,7 +14,7 @@ test.afterAll(async () => {
 });
 
 async function staffTotp(role: Role) {
-  const user = await prisma.user.findFirstOrThrow({ where: { role }, select: { totpSecret: true } });
+  const user = await prisma.user.findFirstOrThrow({ where: { role, disabledAt: null }, select: { totpSecret: true } });
   return authenticator.generate(user.totpSecret!);
 }
 
@@ -61,6 +61,46 @@ async function expectTargetsAtLeast(page: Page, selector: string, min: number) {
   );
   expect(small).toEqual([]);
 }
+
+test("demo evaluator credentials are consolidated to four active logins", async ({ page }) => {
+  const [legacyStaff, mergedStaff, schoolCount] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { email: "staff@woodbridge.demo" },
+      include: { schools: { select: { schoolId: true } } },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { email: "districtadmin@woodbridge.demo" },
+      include: { schools: { select: { schoolId: true } } },
+    }),
+    prisma.school.count(),
+  ]);
+
+  expect(legacyStaff.role).toBe("SCHOOL_STAFF");
+  expect(legacyStaff.disabledAt).not.toBeNull();
+  expect(legacyStaff.schools).toHaveLength(1);
+
+  expect(mergedStaff.role).toBe("DISTRICT_ADMIN");
+  expect(mergedStaff.disabledAt).toBeNull();
+  expect(mergedStaff.schools).toHaveLength(schoolCount);
+
+  const audit = await prisma.auditLog.findFirst({
+    where: {
+      action: "CONFIG_USER_DEACTIVATE",
+      subjectId: legacyStaff.id,
+    },
+  });
+  expect(audit).not.toBeNull();
+
+  await page.goto("/signin");
+  await page.getByLabel("Email").fill(legacyStaff.email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByLabel("Authenticator code").fill(authenticator.generate(legacyStaff.totpSecret!));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("That password doesn't match. Try again, or reset it.")).toBeVisible();
+  await expect(page).toHaveURL(/\/signin/);
+
+  await signIn(page, mergedStaff.email, /\/admin/, authenticator.generate(mergedStaff.totpSecret!));
+});
 
 function dateOnlyInZone(timeZone: string, now = new Date()): Date {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -202,10 +242,21 @@ test("admin laptop flow covers search, correction, export error surface, and imp
   await page.getByRole("link", { name: "Check today's figures" }).click();
   await expect(page.getByRole("heading", { name: "Check meal-count ceilings" })).toBeVisible();
   await expect(page.getByText("Ceilings use the 93.8% FNS federal default and are rounded down to a whole meal.")).toBeVisible();
-  await expect(page.getByText("These are your figures to check and submit. This system doesn't file claims.")).toBeVisible();
+  await expect(page.getByText("These are your figures to check and submit. This system doesn't file claims and isn't your official counting record")).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Maximum expected" })).toBeVisible();
   await expect(page.getByText("Needs attention", { exact: true })).toBeVisible();
   await expect(page.getByText(/attendance factor/i)).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+  await expectAxeClean(page);
+  await expectTargetsAtLeast(page, "a,button,input,select", 44);
+
+  await page.goto("/admin/reports/claim-figures?month=2026-08");
+  await expect(page.getByRole("heading", { name: "Monthly claim figures" })).toBeVisible();
+  await expect(page.getByText("54.82% × 1.6 = 87.7% at the free rate")).toBeVisible();
+  await expect(page.getByText("This prototype contains 200 synthetic students, so these totals are not district-scale figures.")).toBeVisible();
+  await expect(page.getByText("This system doesn't file claims and isn't your official counting record")).toBeVisible();
+  await expect(page.getByText(/Lunch counts look high at Woodbridge Middle/)).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Extra lunches" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
   await expectTargetsAtLeast(page, "a,button,input,select", 44);

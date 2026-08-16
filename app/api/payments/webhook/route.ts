@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await paymentPort.settle({ intentId: event.intentId, eventId: event.id });
     // Notify the guardian only on the first (non-replay) settlement.
-    if (!result.alreadySettled) {
+    if (!result.alreadySettled && !result.automaticTopUpRunId) {
       await notifyDepositCompleted({ guardianId: result.guardianId, allocations: result.allocations });
     }
     return NextResponse.json({ ok: true, alreadySettled: result.alreadySettled });

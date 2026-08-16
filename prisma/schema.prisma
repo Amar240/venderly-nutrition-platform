@@ -91,6 +91,8 @@ enum NotificationType {
   LOW_BALANCE
   DEPOSIT_COMPLETED
   TRANSFER_COMPLETED
+  AUTO_TOP_UP_COMPLETED
+  AUTO_TOP_UP_SKIPPED
 }
 
 enum NotificationChannel {
@@ -110,23 +112,36 @@ enum PaymentIntentStatus {
   FAILED
 }
 
+enum AutomaticTopUpRunStatus {
+  PENDING
+  COMPLETED
+  SKIPPED_CEILING
+  FAILED
+}
+
+enum AttendanceFactorProvenance {
+  FNS_FEDERAL_DEFAULT
+  APPROVED_LOCAL
+}
+
 // ---------------------------------------------------------------------------
 // Directory: district / school / student
 // ---------------------------------------------------------------------------
 
 model District {
-  id                             String   @id @default(cuid())
-  name                           String
-  identifiedStudentPercentageBps Int?
+  id                              String                     @id @default(cuid())
+  name                            String
+  identifiedStudentPercentageBps  Int?
   // External compliance input. Woodbridge's seed uses the 93.8% FNS federal
   // default because no Delaware-specific published percentage was found (D-14).
-  stateAttendanceFactorBps       Int?
+  stateAttendanceFactorBps        Int?
+  stateAttendanceFactorProvenance AttendanceFactorProvenance @default(FNS_FEDERAL_DEFAULT)
   // District-authored plain-text unpaid meal charge policy. Seed stays unset
   // until Woodbridge supplies its own wording (D-19/D-20).
   unpaidMealChargePolicyText      String?
-  timeZone                       String   @default("America/New_York")
-  createdAt                      DateTime @default(now())
-  updatedAt                      DateTime @updatedAt
+  timeZone                        String                     @default("America/New_York")
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
 
   schools        School[]
   students       Student[]
@@ -193,17 +208,18 @@ model Student {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  district           District            @relation(fields: [districtId], references: [id])
-  school             School              @relation(fields: [schoolId], references: [id])
-  classroom          Classroom?          @relation("StudentClassroom", fields: [classroomId, schoolId], references: [id, schoolId], onDelete: Restrict, onUpdate: Cascade)
-  account            Account?
-  pricing            StudentPricing? // pricing INPUT only — not part of the rule-9 field list
-  guardianLinks      GuardianStudent[]
-  mealEvents         MealEvent[]
-  itemSales          ItemSale[]
-  paymentAllocations PaymentAllocation[]
-  correctionCases    CorrectionCase[] @relation("CorrectionCaseStudent")
-  targetedCorrectionCases CorrectionCase[] @relation("CorrectionCaseTargetStudent")
+  district                District             @relation(fields: [districtId], references: [id])
+  school                  School               @relation(fields: [schoolId], references: [id])
+  classroom               Classroom?           @relation("StudentClassroom", fields: [classroomId, schoolId], references: [id, schoolId], onDelete: Restrict, onUpdate: Cascade)
+  account                 Account?
+  pricing                 StudentPricing? // pricing INPUT only — not part of the rule-9 field list
+  guardianLinks           GuardianStudent[]
+  mealEvents              MealEvent[]
+  itemSales               ItemSale[]
+  paymentAllocations      PaymentAllocation[]
+  correctionCases         CorrectionCase[]     @relation("CorrectionCaseStudent")
+  targetedCorrectionCases CorrectionCase[]     @relation("CorrectionCaseTargetStudent")
+  autoTopUpRules          AutomaticTopUpRule[]
 
   @@unique([districtId, studentNumber])
   @@index([schoolId])
@@ -244,6 +260,7 @@ model Guardian {
   studentLinks   GuardianStudent[]
   notifications  Notification[]
   paymentIntents PaymentIntent[]
+  autoTopUpRules AutomaticTopUpRule[]
 }
 
 model GuardianStudent {
@@ -280,12 +297,14 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  district           District     @relation(fields: [districtId], references: [id])
-  schools            UserSchool[]
-  recordedMealEvents MealEvent[]  @relation("MealRecordedBy")
-  reversedMealEvents MealEvent[]  @relation("MealReversedBy")
-  correctionCases    CorrectionCase[] @relation("CorrectionCaseActor")
+  district                 District         @relation(fields: [districtId], references: [id])
+  schools                  UserSchool[]
+  recordedMealEvents       MealEvent[]      @relation("MealRecordedBy")
+  reversedMealEvents       MealEvent[]      @relation("MealReversedBy")
+  correctionCases          CorrectionCase[] @relation("CorrectionCaseActor")
   completedCorrectionCases CorrectionCase[] @relation("CorrectionCaseCompletedBy")
+  createdPricingConfigs    PricingConfig[]  @relation("PricingConfigCreatedBy")
+  cancelledPricingConfigs  PricingConfig[]  @relation("PricingConfigCancelledBy")
 }
 
 model UserSchool {
@@ -328,37 +347,39 @@ model LedgerEntry {
   actorId         String?
   createdAt       DateTime        @default(now())
 
-  account       Account       @relation(fields: [accountId], references: [id])
-  correctsEntry LedgerEntry?  @relation("Corrections", fields: [correctsEntryId], references: [id])
-  correctedBy   LedgerEntry[] @relation("Corrections")
-  mealEvent     MealEvent?
-  itemSale      ItemSale?
-  correctionCaseOriginal  CorrectionCase? @relation("CorrectionCaseOriginal")
-  correctionCaseRefund    CorrectionCase? @relation("CorrectionCaseRefund")
-  correctionCaseCharge    CorrectionCase? @relation("CorrectionCaseCharge")
-  correctionCaseAdjustment CorrectionCase? @relation("CorrectionCaseAdjustment")
+  account                  Account             @relation(fields: [accountId], references: [id])
+  correctsEntry            LedgerEntry?        @relation("Corrections", fields: [correctsEntryId], references: [id])
+  correctedBy              LedgerEntry[]       @relation("Corrections")
+  mealEvent                MealEvent?
+  itemSale                 ItemSale?
+  autoTopUpTriggers        AutomaticTopUpRun[] @relation("AutomaticTopUpTrigger")
+  autoTopUpDeposits        AutomaticTopUpRun[] @relation("AutomaticTopUpDeposit")
+  correctionCaseOriginal   CorrectionCase?     @relation("CorrectionCaseOriginal")
+  correctionCaseRefund     CorrectionCase?     @relation("CorrectionCaseRefund")
+  correctionCaseCharge     CorrectionCase?     @relation("CorrectionCaseCharge")
+  correctionCaseAdjustment CorrectionCase?     @relation("CorrectionCaseAdjustment")
 
   @@index([accountId])
   @@index([transferRef])
 }
 
 model CorrectionCase {
-  id                String               @id @default(cuid())
-  situation         CorrectionSituation
-  status            CorrectionCaseStatus @default(PENDING)
-  studentId         String
-  originalEntryId   String?              @unique
-  targetStudentId   String?
-  reason            String
-  actorId           String?
-  refundEntryId     String?              @unique
-  chargeEntryId     String?              @unique
-  adjustmentEntryId String?              @unique
+  id                  String               @id @default(cuid())
+  situation           CorrectionSituation
+  status              CorrectionCaseStatus @default(PENDING)
+  studentId           String
+  originalEntryId     String?              @unique
+  targetStudentId     String?
+  reason              String
+  actorId             String?
+  refundEntryId       String?              @unique
+  chargeEntryId       String?              @unique
+  adjustmentEntryId   String?              @unique
   expectedAmountCents Int?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  completedAt       DateTime?
-  completedByUserId String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  completedAt         DateTime?
+  completedByUserId   String?
 
   student         Student      @relation("CorrectionCaseStudent", fields: [studentId], references: [id], onDelete: Restrict)
   targetStudent   Student?     @relation("CorrectionCaseTargetStudent", fields: [targetStudentId], references: [id], onDelete: Restrict)
@@ -489,28 +510,36 @@ model ImportRun {
 }
 
 // Three configurable pricing paths per meal (PRD business rules; phase 5 §17).
-// Free tier is a configurable field too (normally 0). CEP default = all 0.
+// Free tier is a configurable field too (normally 0). Versions are immutable
+// and resolved by meal service date (D-22). Future versions may be cancelled
+// before they take effect; effective versions are superseded, never edited.
 model PricingConfig {
-  id                       String   @id @default(cuid())
+  id                       String    @id @default(cuid())
   districtId               String
   schoolId                 String? // null = district-wide default
-  breakfastFreeCents       Int      @default(0)
-  breakfastReducedCents    Int      @default(0)
-  breakfastPaidCents       Int      @default(0)
-  lunchFreeCents           Int      @default(0)
-  lunchReducedCents        Int      @default(0)
-  lunchPaidCents           Int      @default(0)
-  lowBalanceThresholdCents Int      @default(1000)
-  lowBalanceMealsThreshold Int      @default(5)
-  cepEnabled               Boolean  @default(true) // Woodbridge demo default: CEP $0
-  effectiveFrom            DateTime @default(now())
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdByUserId          String?
+  cancelledAt              DateTime?
+  cancelledByUserId        String?
+  breakfastFreeCents       Int       @default(0)
+  breakfastReducedCents    Int       @default(0)
+  breakfastPaidCents       Int       @default(0)
+  lunchFreeCents           Int       @default(0)
+  lunchReducedCents        Int       @default(0)
+  lunchPaidCents           Int       @default(0)
+  lowBalanceThresholdCents Int       @default(1000)
+  lowBalanceMealsThreshold Int       @default(5)
+  cepEnabled               Boolean   @default(true) // Woodbridge demo default: CEP $0
+  effectiveFrom            DateTime  @default(now()) @db.Date
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  district District @relation(fields: [districtId], references: [id])
-  school   School?  @relation(fields: [schoolId], references: [id])
+  district    District @relation(fields: [districtId], references: [id])
+  school      School?  @relation(fields: [schoolId], references: [id])
+  createdBy   User?    @relation("PricingConfigCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User?    @relation("PricingConfigCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
 
-  @@unique([districtId, schoolId])
+  @@index([districtId, schoolId, effectiveFrom, createdAt])
+  @@index([districtId, schoolId, cancelledAt, effectiveFrom])
 }
 
 // ---------------------------------------------------------------------------
@@ -553,6 +582,56 @@ model NotificationDelivery {
 }
 
 // ---------------------------------------------------------------------------
+// Automatic top-up rules. A guardian-owned rule has its own lifecycle, so it is
+// separate from Student. Credits still pass through PaymentIntent settlement.
+// ---------------------------------------------------------------------------
+
+model AutomaticTopUpRule {
+  id                  String    @id @default(cuid())
+  guardianId          String
+  studentId           String
+  triggerBalanceCents Int
+  topUpAmountCents    Int
+  monthlyCeilingCents Int
+  active              Boolean   @default(true)
+  cancelledAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  guardian Guardian            @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student  Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  runs     AutomaticTopUpRun[]
+
+  @@index([guardianId])
+  @@index([studentId])
+  @@index([guardianId, studentId, active])
+}
+
+model AutomaticTopUpRun {
+  id                      String                  @id @default(cuid())
+  ruleId                  String
+  triggeringLedgerEntryId String?
+  depositLedgerEntryId    String?
+  idempotencyKey          String                  @unique
+  status                  AutomaticTopUpRunStatus @default(PENDING)
+  balanceAfterCents       Int
+  amountCents             Int
+  ceilingCents            Int
+  skippedReason           String?
+  createdAt               DateTime                @default(now())
+  completedAt             DateTime?
+
+  rule                  AutomaticTopUpRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggeringLedgerEntry LedgerEntry?       @relation("AutomaticTopUpTrigger", fields: [triggeringLedgerEntryId], references: [id], onDelete: SetNull)
+  depositLedgerEntry    LedgerEntry?       @relation("AutomaticTopUpDeposit", fields: [depositLedgerEntryId], references: [id], onDelete: SetNull)
+  paymentIntent         PaymentIntent?
+
+  @@index([ruleId])
+  @@index([triggeringLedgerEntryId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
 // Payments (phase 2 — simulated hosted checkout)
 // PaymentIntent is the server-side source of truth for a deposit's amount. The
 // ledger credit is applied ONLY when the signed provider event settles the
@@ -561,16 +640,18 @@ model NotificationDelivery {
 // ---------------------------------------------------------------------------
 
 model PaymentIntent {
-  id          String              @id @default(cuid()) // also the opaque checkoutId
-  guardianId  String
-  status      PaymentIntentStatus @default(PENDING)
-  totalCents  Int
-  eventId     String?             @unique // provider event id, set on settle
-  createdAt   DateTime            @default(now())
-  completedAt DateTime?
+  id                  String              @id @default(cuid()) // also the opaque checkoutId
+  guardianId          String
+  status              PaymentIntentStatus @default(PENDING)
+  totalCents          Int
+  eventId             String?             @unique // provider event id, set on settle
+  automaticTopUpRunId String?             @unique
+  createdAt           DateTime            @default(now())
+  completedAt         DateTime?
 
-  guardian    Guardian            @relation(fields: [guardianId], references: [id], onDelete: Cascade)
-  allocations PaymentAllocation[]
+  guardian          Guardian            @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  automaticTopUpRun AutomaticTopUpRun?  @relation(fields: [automaticTopUpRunId], references: [id], onDelete: SetNull)
+  allocations       PaymentAllocation[]
 
   @@index([guardianId])
 }

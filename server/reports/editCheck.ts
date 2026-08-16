@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db/client";
 import type { AppSession } from "@/server/auth/types";
-import type { MealType } from "@prisma/client";
+import type { AttendanceFactorProvenance, MealType } from "@prisma/client";
 import { dailyMealCounts } from "./mealCounts";
 import { reportScope } from "./scope";
 
@@ -25,6 +25,7 @@ export interface AvailableEditCheckReport {
   status: "available";
   districtName: string;
   factorBps: number;
+  factorProvenance: AttendanceFactorProvenance;
   rows: EditCheckRow[];
 }
 
@@ -59,7 +60,7 @@ export async function editCheckReport(
   const [district, mealRows, enrollmentGroups] = await Promise.all([
     prisma.district.findUnique({
       where: { id: scope.districtId },
-      select: { name: true, stateAttendanceFactorBps: true },
+      select: { name: true, stateAttendanceFactorBps: true, stateAttendanceFactorProvenance: true },
     }),
     // Reuse the claim-facing daily count service and its shared D-10 filter.
     dailyMealCounts(session, range),
@@ -110,6 +111,7 @@ export async function editCheckReport(
     status: "available",
     districtName: district.name,
     factorBps,
+    factorProvenance: district.stateAttendanceFactorProvenance,
     rows,
   };
 }

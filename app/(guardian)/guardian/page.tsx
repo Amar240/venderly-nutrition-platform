@@ -43,6 +43,9 @@ export default async function GuardianHomePage() {
               Move money
             </LinkButton>
           )}
+          <LinkButton href="/guardian/top-up" variant="secondary">
+            Automatic top-up
+          </LinkButton>
           <LinkButton href="/guardian/deposit">Add money</LinkButton>
         </div>
       </div>
@@ -119,6 +122,14 @@ export default async function GuardianHomePage() {
                 className="min-h-touch"
               >
                 Add money
+              </LinkButton>
+              <LinkButton
+                href="/guardian/top-up"
+                variant="secondary"
+                aria-label={`Automatic top-up for ${child.firstName} ${child.lastName}`}
+                className="min-h-touch"
+              >
+                Automatic top-up
               </LinkButton>
             </div>
           </article>

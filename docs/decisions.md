@@ -21,7 +21,18 @@ A price tier is a pricing input, not an eligibility record. See `open-decisions.
 
 **Amendment (design phase):** the guardian household view is a **second authorised reader**, scoped through the verified guardian-student relationship. A parent must be able to see what their own child's meal costs — a reduced-price family needs to know lunch is $0.40 in order to fund the account. Confidentiality was always about the cashier, other families, and general reports; never about the child's own parent.
 
-Unchanged: no tier in any POS payload, page source, client state, log line, export, or report. The reader list is exactly two — `server/meals` pricing logic, and the guardian's own household query.
+Unchanged: no tier in any POS payload, page source, client state, log line, export, or report.
+
+**Second amendment (stage C, pricing configuration):** the pricing configuration screen is a **third authorised reader**, for **district-wide aggregate counts by category only** — "1,768 free, 218 reduced, 734 paid" — shown to `DISTRICT_ADMIN` and above.
+
+Why this is not a loosening: the district determines these categories; it is their own data. An administrator setting six prices without knowing how many students each affects is configuring blind. Same shape as the guardian amendment — a legitimate reader with a real need.
+
+Binding constraints on this reader:
+- **District-wide totals only. Never a per-school breakdown.** At demo scale S.C.O.P.E. North holds roughly two students; a per-school category count there would effectively identify a child. This is the small-cell disclosure problem education data rules exist to prevent, and it would be easy to add later without noticing it.
+- Counts only. No student identities, no drill-through from a count to a list, ever.
+- Confined to the pricing configuration screen. Not exports, not general reports, not logs, not audit payloads.
+
+**The reader list is now exactly three, and that is where it stops.** Both amendments were justified by a real need. A fourth reader requires genuine scrutiny, not another amendment by momentum — past three, the rule stops meaning anything.
 
 ## D-2 · PricingConfig uses explicit tier names
 **Decided:** phase 1 · **Status:** settled
@@ -212,6 +223,38 @@ The deeper meal-history seed keeps the existing 200 synthetic students rather th
 Rejected: expanding the seed to full district enrolment. It multiplies reset time, fixtures, and UI datasets for a demo environment that gets reset often, and the mitigation above costs nothing by comparison. Revisit only if a full-scale performance demonstration is actually required.
 
 **Firmly rejected: a separate aggregate count table for claims.** Claim figures derive from `MealEvent` rows and nothing else. Every trust guarantee in the project depends on one source — reversed events never counting, overrides reported on their own line (D-10), the edit check reading the same query as the report (item 6). A second source silently breaks all of them and would be very hard to detect once introduced.
+
+## D-22 · Pricing configuration is versioned and dated, never overwritten
+**Decided:** stage C · **Status:** settled
+
+The pricing screen's "These prices start on" field is backed by immutable dated versions, not a mutable date on a single current row.
+
+**The decisive argument:** `TRUST_COPY.priceChange` already promises on screen that "meals already served keep the price they were charged at — changing these numbers never changes anything in the past." Overwriting a row's effective date would make that sentence false. It is the append-only instinct (rule 2) applied to configuration instead of money: supersede, never rewrite.
+
+The operational need is equally real — districts set next school year's prices during the summer, before the year begins. A change dated "today" cannot express that.
+
+Binding constraints:
+- Prices resolve **by the meal's service date**, not by "whatever is current." A backdated or corrected meal prices under the rules actually in force on the day it was served.
+- **One scheduled future version at a time.** A queue of pending changes nobody can see is worse than no scheduling.
+- A future version that has not yet taken effect **may be cancelled** — nothing depends on it — and the cancellation is audited.
+- A version that has ever been effective is **never** edited or deleted. A correction is a new superseding version.
+- Every version records who created it, when, and its effective date, like any other config change (rule 8).
+
+## D-23 · Claim figures cover CEP months only; non-CEP months show an honest unavailable state
+**Decided:** stage D · **Status:** settled
+
+**This is the first test of D-1's "fourth reader requires genuine scrutiny" clause, and the answer is no — on scope grounds, explicitly not on principle.**
+
+The honest position first: a non-CEP claim report genuinely does need meal counts by category. NSLP reimburses free, reduced, and paid at different rates, so a district cannot file a claim without them. Showing reimbursable totals without the split (the third option considered) would produce a report nobody can actually submit from — worse than declining, because it looks complete and is not.
+
+Why it is nonetheless out of scope now:
+- Woodbridge is CEP district-wide, the seed is CEP, and no demo path exercises non-CEP claiming.
+- Building it properly requires a historical tier snapshot — resolving what each student's category was **on the service date**, not today — plus a fourth D-1 reader with aggregate-only and small-cell rules. Substantial work for a path nothing currently walks.
+- Real CEP status is set per school on a four-year cycle, not toggled mid-month. A genuinely mixed month is an artifact of our demo toggle, not something a district experiences. The toggle exists to prove the system handles both kinds of district, not to model one changing its mind in October.
+
+**Behaviour:** a CEP month produces the full report. A non-CEP or mixed month shows a clear unavailable state naming the reason plainly and pointing to PCS — consistent with `TRUST_COPY.claimFigures`, which already states PCS remains the official counting record. Never a partial report presented as usable.
+
+**Named as future work, not a permanent limitation.** If a non-CEP district becomes a real prospect, this gets designed properly: historical tier resolution by service date, aggregate counts only, small-cell suppression, and a deliberate D-1 amendment rather than an incidental one.
 
 ## D-5 · Notifications are in-app only for the pilot
 **Decided:** phase 1 schema, phase 5 behaviour · **Status:** settled

@@ -1,41 +1,45 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAppSession } from "@/server/auth/session";
-import { listPricingConfigs } from "@/server/config/pricing";
+import { getPricingConfigurationView } from "@/server/config/pricing";
 import { AuthError } from "@/server/auth/errors";
+import { districtToday } from "@/server/time/district";
 import { PricingForm } from "./pricing-form";
 
 export default async function PricingConfigPage() {
   const session = await getAppSession();
-  let configs;
+  let view;
+  let today = new Date();
   try {
-    configs = await listPricingConfigs(session);
+    view = await getPricingConfigurationView(session);
+    if (session?.principalType === "staff") today = await districtToday(session.districtId);
   } catch (err) {
     if (err instanceof AuthError) notFound();
     throw err;
   }
-  const district = configs.find((c) => c.schoolId === null);
-  const initial = {
-    cepEnabled: district?.cepEnabled ?? true,
-    breakfastFreeCents: district?.breakfastFreeCents ?? 0,
-    breakfastReducedCents: district?.breakfastReducedCents ?? 0,
-    breakfastPaidCents: district?.breakfastPaidCents ?? 0,
-    lunchFreeCents: district?.lunchFreeCents ?? 0,
-    lunchReducedCents: district?.lunchReducedCents ?? 0,
-    lunchPaidCents: district?.lunchPaidCents ?? 0,
-    lowBalanceThresholdCents: district?.lowBalanceThresholdCents ?? 1000,
-    lowBalanceMealsThreshold: district?.lowBalanceMealsThreshold ?? 5,
-  };
+  const dateString = (date: Date | null) => date?.toISOString().slice(0, 10) ?? null;
 
   return (
-    <section className="mx-auto max-w-xl">
+    <section className="mx-auto max-w-5xl">
       <Link href="/admin/config" className="text-sm text-ink-muted hover:text-ink">← Settings</Link>
       <h1 className="mt-2 text-2xl font-medium text-ink">Meal prices</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        District defaults. When free meals for all students is on, breakfast and lunch cost $0 for everyone.
+        {view.districtName} uses dated price settings, so meals already served keep the price shown at the time.
       </p>
       <div className="mt-6">
-        <PricingForm initial={initial} />
+        <PricingForm
+          current={{
+            ...view.current,
+            effectiveFrom: dateString(view.current.effectiveFrom),
+          }}
+          scheduled={view.scheduled ? {
+            ...view.scheduled,
+            effectiveFrom: dateString(view.scheduled.effectiveFrom),
+          } : null}
+          counts={view.counts}
+          compliance={view.compliance}
+          today={today.toISOString().slice(0, 10)}
+        />
       </div>
     </section>
   );

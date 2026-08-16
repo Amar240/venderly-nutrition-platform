@@ -6,6 +6,7 @@ import { AuthError } from "@/server/auth/errors";
 import type { AppSession, StaffPrincipal } from "@/server/auth/types";
 import { districtToday } from "@/server/time/district";
 import { notifyIfLowBalanceCrossed } from "@/server/notifications/service";
+import { triggerAutomaticTopUpsForDebit } from "@/server/household/autoTopUp";
 import { findLiveServedStudentIds } from "./mealCounts";
 import {
   lockCashierAndChooseRecordedAt,
@@ -373,6 +374,11 @@ export async function recordRosterBatch(
           notification.debitCents,
           notification.thresholdCents,
         );
+        await triggerAutomaticTopUpsForDebit({
+          studentId: notification.studentId,
+          debitCents: notification.debitCents,
+          triggeringLedgerEntryId: notification.ledgerEntryId,
+        });
       } catch (error) {
         console.error("[meal] low-money notification failed after roster recording", error);
       }

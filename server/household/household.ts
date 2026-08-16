@@ -111,7 +111,8 @@ async function buildHouseholdChild(input: {
   const { student } = input;
   const balanceCents = student.account?.balanceCents ?? 0;
   const tier: PriceTier = student.pricing?.tier ?? "FREE";
-  const config = await getResolvedPricingConfig(student.districtId, student.schoolId);
+  const today = await districtToday(student.districtId, input.now);
+  const config = await getResolvedPricingConfig(student.districtId, student.schoolId, today);
   const breakfastPriceCents = computeMealPriceCents("BREAKFAST", tier, config);
   const lunchPriceCents = computeMealPriceCents("LUNCH", tier, config);
   const lowThreshold = lowBalanceThresholdForChild({
@@ -124,7 +125,6 @@ async function buildHouseholdChild(input: {
   const mealsRemaining = lunchPriceCents > 0 && balanceCents >= 0
     ? Math.floor(balanceCents / lunchPriceCents)
     : null;
-  const today = await districtToday(student.districtId, input.now);
   const servedMealTypes = (["BREAKFAST", "LUNCH"] as const).filter(
     (mealType) => mealEndMinutes(student, mealType) !== null,
   );
@@ -240,7 +240,8 @@ export async function getChildDetail(
   });
   if (!student || !student.account) return null;
 
-  const config = await getResolvedPricingConfig(student.districtId, student.schoolId);
+  const today = await districtToday(student.districtId);
+  const config = await getResolvedPricingConfig(student.districtId, student.schoolId, today);
   const tier: PriceTier = student.pricing?.tier ?? "FREE";
   const lunchPriceCents = computeMealPriceCents("LUNCH", tier, config);
   const threshold = lowBalanceThresholdForChild({

@@ -21,6 +21,7 @@ export interface CheckoutAllocation {
 export interface CreateCheckoutInput {
   guardianId: string;
   allocations: CheckoutAllocation[];
+  automaticTopUpRunId?: string;
 }
 
 export interface CreateCheckoutResult {
@@ -29,9 +30,11 @@ export interface CreateCheckoutResult {
 }
 
 export interface SettleResult {
+  intentId: string;
   eventId: string;
   guardianId: string;
   allocations: CheckoutAllocation[];
+  automaticTopUpRunId: string | null;
   /** True when the intent was already settled — this call credited nothing. */
   alreadySettled: boolean;
 }
@@ -61,6 +64,7 @@ class SimulatedPaymentPort implements PaymentPort {
       data: {
         guardianId: input.guardianId,
         totalCents,
+        automaticTopUpRunId: input.automaticTopUpRunId ?? null,
         allocations: {
           create: input.allocations.map((a) => ({
             studentId: a.studentId,
@@ -99,8 +103,10 @@ class SimulatedPaymentPort implements PaymentPort {
     if (intent.status === "COMPLETED") {
       return {
         eventId: intent.eventId ?? input.eventId,
+        intentId: intent.id,
         guardianId: intent.guardianId,
         allocations,
+        automaticTopUpRunId: intent.automaticTopUpRunId,
         alreadySettled: true,
       };
     }
@@ -134,8 +140,10 @@ class SimulatedPaymentPort implements PaymentPort {
 
     return {
       eventId: input.eventId,
+      intentId: intent.id,
       guardianId: intent.guardianId,
       allocations,
+      automaticTopUpRunId: intent.automaticTopUpRunId,
       alreadySettled: false,
     };
   }

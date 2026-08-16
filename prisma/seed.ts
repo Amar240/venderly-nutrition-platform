@@ -5,7 +5,7 @@
  *  - guardians linked via GuardianStudent, accounts with varied balances
  *    (balances derive from opening ledger entries; cached balanceCents matches)
  *  - four evaluator sign-ins; staff pre-enrolled with a TOTP secret
- *  - CEP pricing default ($0 breakfast/lunch)
+ *  - free meals on, with synthetic fallback prices ready for the CEP-off demo
  *
  * All data is synthetic. No real student information (CLAUDE.md).
  * Imports concrete packages (not "@/" aliases) so it runs under tsx directly.
@@ -94,6 +94,8 @@ async function reset() {
   await prisma.mealEvent.deleteMany();
   await prisma.paymentAllocation.deleteMany();
   await prisma.paymentIntent.deleteMany();
+  await prisma.automaticTopUpRun.deleteMany();
+  await prisma.automaticTopUpRule.deleteMany();
   // LedgerEntry is append-only at the DB level; clear it via the admin escape.
   await withLedgerAdmin(prisma, (tx) => tx.ledgerEntry.deleteMany());
   await prisma.account.deleteMany();
@@ -782,6 +784,15 @@ async function verifyDeepSeed(input: {
     assertSeed(await deriveBalanceCents(account.id) === expected, "protected demo balances must remain unchanged");
     assertSeed(account.balanceCents === expected, "protected cached demo balances must remain unchanged");
   }
+  const marcusTopUp = await prisma.automaticTopUpRule.findFirst({
+    where: { studentId: input.demoChildBId, active: true },
+  });
+  assertSeed(
+    marcusTopUp?.triggerBalanceCents === 800 &&
+      marcusTopUp.topUpAmountCents === 1_000 &&
+      marcusTopUp.monthlyCeilingCents === 3_000,
+    "Marcus must retain the automatic top-up demo fixture",
+  );
   const rosterStudents = await prisma.student.findMany({
     where: { school: { code: { in: ["7760", "0779"] } }, enrollmentStatus: "ACTIVE" },
     select: { classroomId: true },
@@ -789,6 +800,18 @@ async function verifyDeepSeed(input: {
   assertSeed(rosterStudents.every((student) => student.classroomId !== null), "roster-school classroom assignments must remain complete");
   assertSeed(await prisma.correctionCase.count({ where: { status: "COMPLETED" } }) === 1, "the completed correction fixture must remain");
   assertSeed(await prisma.studentPricing.count() === DEMO_STUDENT_COUNT, "every student must retain one pricing row");
+  const pricing = await prisma.pricingConfig.findFirstOrThrow({
+    where: { districtId: input.districtId, schoolId: null, cancelledAt: null },
+    orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+  });
+  assertSeed(pricing.cepEnabled, "Woodbridge must reset with free meals for all students on");
+  assertSeed(
+    pricing.breakfastReducedCents === 30 &&
+      pricing.breakfastPaidCents === 200 &&
+      pricing.lunchReducedCents === 40 &&
+      pricing.lunchPaidCents === 325,
+    "synthetic fallback meal prices must remain seeded for the CEP-off demo",
+  );
 
   const negativeBalanceCount = await prisma.account.count({ where: { balanceCents: { lt: 0 } } });
   assertSeed(negativeBalanceCount > 0, "negative-balance fixtures must remain present");
@@ -823,24 +846,8 @@ async function main() {
       identifiedStudentPercentageBps: WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
       // FNS federal default; no Delaware-specific published percentage was found.
       stateAttendanceFactorBps: WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS,
+      stateAttendanceFactorProvenance: "FNS_FEDERAL_DEFAULT",
       timeZone: WOODBRIDGE_TIME_ZONE,
-    },
-  });
-
-  // District-wide CEP pricing default: $0 breakfast/lunch for all tiers.
-  await prisma.pricingConfig.create({
-    data: {
-      districtId: district.id,
-      schoolId: null,
-      breakfastFreeCents: 0,
-      breakfastReducedCents: 0,
-      breakfastPaidCents: 0,
-      lunchFreeCents: 0,
-      lunchReducedCents: 0,
-      lunchPaidCents: 0,
-      lowBalanceThresholdCents: 1000,
-      lowBalanceMealsThreshold: 5,
-      cepEnabled: true,
     },
   });
 
@@ -948,6 +955,17 @@ async function main() {
       },
     });
   }
+  // Stage C item 10 fixture: Marcus demonstrates an active automatic top-up
+  // rule in a CEP district, so the copy uses snack-money thresholds.
+  await prisma.automaticTopUpRule.create({
+    data: {
+      guardianId: demoGuardian.id,
+      studentId: demoChildB.id,
+      triggerBalanceCents: 800,
+      topUpAmountCents: 1000,
+      monthlyCeilingCents: 3000,
+    },
+  });
 
   const posDemoGuardian = await prisma.guardian.create({
     data: {
@@ -1127,6 +1145,28 @@ async function main() {
   if (!superAdminUserId || !legacySchoolStaffUserId || !cashierUserId || !districtAdminUserId) {
     throw new Error("Seed staff users were not created as expected");
   }
+
+  // District-wide free-meals version. The fallback prices are synthetic demo
+  // values kept ready for the CEP-off demonstration; they are not claimed as
+  // Woodbridge's official non-CEP prices.
+  await prisma.pricingConfig.create({
+    data: {
+      districtId: district.id,
+      schoolId: null,
+      createdByUserId: superAdminUserId,
+      effectiveFrom: await districtToday(district.id),
+      breakfastFreeCents: 0,
+      breakfastReducedCents: 30,
+      breakfastPaidCents: 200,
+      lunchFreeCents: 0,
+      lunchReducedCents: 40,
+      lunchPaidCents: 325,
+      lowBalanceThresholdCents: 1000,
+      lowBalanceMealsThreshold: 5,
+      cepEnabled: true,
+    },
+  });
+
   await setUserDisabled(
     {
       principalType: "staff",
@@ -1299,6 +1339,7 @@ async function main() {
   console.log(`Snack-history fixture: ${deepHistory.snackPurchasesCreated} purchases`);
   console.log(`Roster-freshness fixture: latest student list is 9 days old`);
   console.log(`Negative-balance fixtures: ${deepSummary.negativeBalanceCount} students`);
+  console.log("Automatic top-up fixture: Marcus adds $10.00 below $8.00, monthly limit $30.00");
   console.log(`\nShared demo password (all accounts): ${DEMO_PASSWORD}`);
   console.log("\nEvaluator logins:");
   console.log("  Guardian — guardian@woodbridge.demo — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");

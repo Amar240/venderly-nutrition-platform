@@ -19,8 +19,11 @@ Written after an audit of what is actually in the repository versus what was onl
 | Situation-first corrections with follow-up handling | `server/corrections/situationCorrections.ts` |
 | Money history as linked sentences | `server/ledger/moneyHistory.ts` |
 | Arrears listing and district charge policy | `server/reports/arrears.ts`, `server/policy/chargePolicy.ts` |
+| Automatic top-up | `server/household/autoTopUp.ts`, `app/(guardian)/guardian/top-up/` |
+| Versioned meal-price configuration | `server/config/pricing.ts`, `app/(admin)/admin/config/pricing/page.tsx` |
+| Monthly claim figures for CEP months | `server/reports/claimFigures.ts`, `app/(admin)/admin/reports/claim-figures/page.tsx` |
 
-**Mockup only — no code exists:** monthly claim figures and the claim pack, month-end close, the rebuilt dashboard, the welfare signal, the guardian weekly view, leaving-students money, automatic top-up. The pricing screen exists but is the pre-redesign version.
+**Mockup only — no code exists:** the claim pack, month-end close, the rebuilt dashboard, the welfare signal, the guardian weekly view, leaving-students money.
 
 ---
 
@@ -53,31 +56,42 @@ Every planted anomaly gets a comment in the seed explaining what it exists to de
 
 ---
 
+## Scope line
+
+Eight items get built. Three are deliberately deferred and documented as named-but-not-built, in the same way free and reduced application management already is — describable in the room, honestly, without having been built.
+
+**Deferred, with reasons:**
+
+- **Month-end close.** Overlaps substantially with claim figures and the claim pack, which together already surface unresolved items.
+- **Guardian weekly view.** Never in the build order; came from a mockup and was never scoped. The guardian home already answers "did my child eat today" and carries the missed-lunch pattern note.
+- **Leaving-students money.** The seed already plants 12 graduating students holding $235.24, so the data exists whenever this is taken up. Overlaps D-20's deferred group-contact action; scope both together.
+
+Deferring is not rejecting. Each is a real capability with a real reason to wait.
+
+---
+
 ## Order of work
 
-### Now — foundation
+### Foundation — done
 
-1. **Deepen the seed.** Above. Blocks tasks 4, 7, and 8.
+1. ~~**Deepen the seed.**~~ Complete. 29 operating days, one planted edit-check breach verified through the real report, seven stopped-eating fixtures, reversed and override events for exclusion demos.
 
-### Stage C — finish the money layer
+### Stage C — done
 
-2. **Automatic top-up.** Family-set ceiling, fires on the low-balance crossing, notification each time, idempotent so a retry can never double-charge, and a defined interaction with a manual top-up happening at the same moment.
-3. **Pricing configuration screen.** Rebuild the existing pre-redesign screen: students-affected counts per tier, effective dating, and the CEP switch as the demo moment. Fold in D-14's open follow-up — surface `identifiedStudentPercentageBps` and `stateAttendanceFactorBps` here rather than leaving them seed-only.
+2. ~~**Automatic top-up.**~~ Complete. Family-set ceiling, low-money crossing, in-app notifications, payment-boundary reuse, and idempotent trigger handling are implemented.
+3. ~~**Pricing configuration screen.**~~ Complete. The screen is versioned, effective-dated, district-admin accessible, and now includes D-14's district claim settings.
 
 ### Stage D — compliance
 
-4. **Monthly claim figures.** Per-school totals, the CEP claiming-percentage arithmetic shown openly (ISP × 1.6, capped at 100%), and the boundary statement on screen.
-5. **Claim pack.** One printable document for a state reviewer, prototype banner included on print.
-6. **Month-end close.** Unresolved items surfaced: unreviewed edit-check exceptions, outstanding correction follow-ups (D-15), uncorrected anomalies.
+4. ~~**Monthly claim figures.**~~ Complete. CEP months show per-school totals, edit-check exceptions, the claiming-percentage arithmetic, the boundary statement, and the D-21 scale disclosure. Non-CEP and mixed months stop with the D-23 scope-boundary state.
+5. **Claim pack.** One printable document for a state reviewer, prototype banner included on print. The artifact that makes item 4 survive an audit.
 
 ### Stage E — insight and polish
 
-7. **Dashboard rebuilt** as things needing attention, each naming an action, numbers underneath.
-8. **Welfare signal** with the full spec-7 guardrails: count-only on dashboards, names only behind an audited action routed to a counsellor, switchable off, rule stated plainly. Eating pattern alone — never an attendance claim (D-12).
-9. **Guardian weekly view** — needs a scoping decision first. Shown in mockups, never decided, not in the build order.
-10. **Leaving-students money** — needs a scoping decision first. Overlaps D-20's deferred group-contact action; scope both together.
-11. **Accessibility pass.** Keyboard-only, 200% zoom, contrast, live regions — plus the outstanding manual checks (physical tablet for roster mode, VoiceOver).
-12. **Demo script**, rehearsing the CEP flip.
+6. **Dashboard rebuilt** as things needing attention, each naming an action, numbers underneath. The first screen an evaluator sees when they sign in.
+7. **Welfare signal** with the full spec-7 guardrails: count-only on dashboards, names only behind an audited action routed to a counsellor, switchable off, rule stated plainly. Eating pattern alone — never an attendance claim (D-12). The differentiator no competitor in the landscape has.
+8. **Accessibility pass.** Keyboard-only, 200% zoom, contrast, live regions — plus the outstanding manual checks (physical tablet for roster mode, VoiceOver). This is a gate, not polish: US public-sector procurement carries real accessibility obligations, and a district can be exposed by buying software that fails them.
+9. **Demo script**, rehearsing the CEP flip.
 
 ---
 

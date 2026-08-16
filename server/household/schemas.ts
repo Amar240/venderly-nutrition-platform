@@ -28,5 +28,18 @@ export const transferSchema = z
     path: ["toStudentId"],
   });
 
+export const automaticTopUpSchema = z
+  .object({
+    studentId: z.string().min(1),
+    triggerBalanceCents: z.number().int().min(0),
+    topUpAmountCents: positiveCents,
+    monthlyCeilingCents: positiveCents,
+  })
+  .refine((v) => v.monthlyCeilingCents >= v.topUpAmountCents, {
+    message: "The monthly limit must be at least the top-up amount.",
+    path: ["monthlyCeilingCents"],
+  });
+
 export type DepositInput = z.infer<typeof depositSchema>;
 export type TransferInput = z.infer<typeof transferSchema>;
+export type AutomaticTopUpInput = z.infer<typeof automaticTopUpSchema>;

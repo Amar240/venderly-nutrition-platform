@@ -4,6 +4,12 @@ import { dailyMealCounts } from "./mealCounts";
 import { monthlyDeposits } from "./deposits";
 import { districtDashboard } from "./dashboard";
 import { editCheckCeiling, editCheckReport } from "./editCheck";
+import {
+  allocateCepClaimSplit,
+  calculateCepFreeRateUnits,
+  monthlyClaimFigures,
+  resolveClaimMonth,
+} from "./claimFigures";
 import { arrearsReport, currentNegativeStreak } from "./arrears";
 import { listTransactions, transactionsToCsv } from "./transactions";
 import { getMoneyHistoryForAccount } from "@/server/ledger/moneyHistory";
@@ -40,8 +46,8 @@ afterAll(async () => {
     await prisma.item.deleteMany({ where: { districtId: id } });
     await prisma.account.deleteMany({ where: { student: { districtId: id } } });
     await prisma.student.deleteMany({ where: { districtId: id } });
-    await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.pricingConfig.deleteMany({ where: { districtId: id } });
+    await prisma.user.deleteMany({ where: { districtId: id } });
     await prisma.school.deleteMany({ where: { districtId: id } });
     await prisma.district.deleteMany({ where: { id } });
   }
@@ -72,6 +78,7 @@ async function fresh(): Promise<Fixture> {
   const district = await prisma.district.create({
     data: {
       name: `TEST-${crypto.randomUUID()}`,
+      identifiedStudentPercentageBps: 5482,
       stateAttendanceFactorBps: FNS_FEDERAL_DEFAULT_FACTOR_BPS,
     },
   });
@@ -170,6 +177,17 @@ describe("edit-check ceiling", () => {
   it("rejects invalid calculation inputs", () => {
     expect(() => editCheckCeiling(-1, FNS_FEDERAL_DEFAULT_FACTOR_BPS)).toThrow(RangeError);
     expect(() => editCheckCeiling(51, 10_001)).toThrow(RangeError);
+  });
+});
+
+describe("CEP claim arithmetic", () => {
+  it("preserves the exact 54.82 x 1.6 result, caps at 100%, and preserves totals", () => {
+    expect(calculateCepFreeRateUnits(5482)).toBe(87_712);
+    expect(calculateCepFreeRateUnits(9000)).toBe(100_000);
+    expect(allocateCepClaimSplit(100, 87_712)).toEqual({ total: 100, freeRate: 87, paidRate: 13 });
+    expect(allocateCepClaimSplit(3, 87_712)).toEqual({ total: 3, freeRate: 2, paidRate: 1 });
+    expect(() => calculateCepFreeRateUnits(10_001)).toThrow(RangeError);
+    expect(() => allocateCepClaimSplit(-1, 87_712)).toThrow(RangeError);
   });
 });
 
@@ -297,6 +315,183 @@ describe.skipIf(!dbUp)("edit-check report", () => {
       where: { id: f.districtId },
       data: { stateAttendanceFactorBps: -1 },
     })).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!dbUp)("monthly claim figures", () => {
+  it("defaults to the previous completed district month and falls back from future months", async () => {
+    const f = await fresh();
+    const current = new Date("2026-08-15T16:00:00.000Z");
+    await expect(resolveClaimMonth(f.districtId, { now: current })).resolves.toMatchObject({
+      year: 2026,
+      month: 7,
+      value: "2026-07",
+      isCurrentMonth: false,
+    });
+    await expect(resolveClaimMonth(f.districtId, { month: "2026-12", now: current })).resolves.toMatchObject({
+      year: 2026,
+      month: 7,
+      value: "2026-07",
+    });
+    await expect(resolveClaimMonth(f.districtId, { month: "2026-08", now: current })).resolves.toMatchObject({
+      year: 2026,
+      month: 8,
+      value: "2026-08",
+      isCurrentMonth: true,
+      to: new Date("2026-08-15T00:00:00.000Z"),
+      classificationTo: new Date("2026-08-31T00:00:00.000Z"),
+    });
+  });
+
+  it("aggregates only shared claim-facing meal counts and leaves extras separate", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    const report = await monthlyClaimFigures(f.superAdmin, {
+      month: today.toISOString().slice(0, 7),
+      now: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16)),
+    });
+    expect(report.status).toBe("available");
+    if (report.status !== "available") throw new Error("Expected available claim figures");
+    const alpha = report.schools.find((row) => row.schoolId === f.schoolAId)!;
+    expect(alpha).toMatchObject({
+      breakfastCount: 0,
+      lunchCount: 1,
+      breakfastExtraCount: 0,
+      lunchExtraCount: 1,
+      needsAttention: false,
+    });
+    expect(report.totals.lunchCount).toBe(1);
+    expect(report.totals.lunchExtraCount).toBe(1);
+    expect(report.lunchSplit).toEqual({ total: 1, freeRate: 0, paidRate: 1 });
+    expect(JSON.stringify(report).toLowerCase()).not.toContain("tier");
+    expect(JSON.stringify(report).toLowerCase()).not.toContain("eligib");
+  });
+
+  it("preserves historical serving-school attribution after a student transfers", async () => {
+    const f = await fresh();
+    await prisma.student.update({
+      where: { id: f.mealStudentId },
+      data: { schoolId: f.schoolBId },
+    });
+    const today = utcToday();
+    const report = await monthlyClaimFigures(f.superAdmin, {
+      month: today.toISOString().slice(0, 7),
+      now: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16)),
+    });
+    if (report.status !== "available") throw new Error("Expected available claim figures");
+    expect(report.schools.find((row) => row.schoolId === f.schoolAId)?.lunchCount).toBe(1);
+    expect(report.schools.find((row) => row.schoolId === f.schoolBId)?.lunchCount).toBe(0);
+  });
+
+  it("surfaces edit-check exceptions before totals", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    await prisma.mealEvent.createMany({
+      data: f.schoolAStudentIds.map((studentId) => ({
+        studentId,
+        schoolId: f.schoolAId,
+        serviceDate: today,
+        mealType: "BREAKFAST" as const,
+        priceCents: 0,
+      })),
+    });
+    const report = await monthlyClaimFigures(f.superAdmin, {
+      month: today.toISOString().slice(0, 7),
+      now: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16)),
+    });
+    if (report.status !== "available") throw new Error("Expected available claim figures");
+    expect(report.exceptions).toHaveLength(1);
+    expect(report.exceptions[0]).toMatchObject({
+      schoolId: f.schoolAId,
+      mealType: "BREAKFAST",
+      claimedCount: 3,
+      ceiling: 2,
+      needsAttention: true,
+    });
+  });
+
+  it("shows a safe missing-percentage state instead of preparing figures", async () => {
+    const f = await fresh();
+    await prisma.district.update({
+      where: { id: f.districtId },
+      data: { identifiedStudentPercentageBps: null },
+    });
+    const report = await monthlyClaimFigures(f.superAdmin, { month: utcToday().toISOString().slice(0, 7) });
+    expect(report).toMatchObject({
+      status: "unavailable_missing_percentage",
+      message: "Claim figures are not ready because the district percentage is not set. Update Settings before preparing these figures.",
+    });
+  });
+
+  it("declines non-free-meals or mixed months without producing a partial report", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    await prisma.pricingConfig.create({
+      data: {
+        districtId: f.districtId,
+        schoolId: null,
+        cepEnabled: false,
+        effectiveFrom: today,
+      },
+    });
+    const report = await monthlyClaimFigures(f.superAdmin, {
+      month: today.toISOString().slice(0, 7),
+      now: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16)),
+    });
+    expect(report.status).toBe("unavailable_non_cep");
+    expect(JSON.stringify(report).toLowerCase()).not.toContain("tier");
+  });
+
+  it("uses historical pricing versions, school overrides, cancellations, and same-day superseding", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    const monthValue = today.toISOString().slice(0, 7);
+    const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+
+    await prisma.pricingConfig.create({ data: { districtId: f.districtId, schoolId: null, cepEnabled: false, effectiveFrom: first } });
+    await prisma.pricingConfig.create({ data: { districtId: f.districtId, schoolId: null, cepEnabled: true, effectiveFrom: first } });
+    await expect(monthlyClaimFigures(f.superAdmin, { month: monthValue, now: today })).resolves.toMatchObject({ status: "available" });
+
+    const schoolOverride = await prisma.pricingConfig.create({
+      data: { districtId: f.districtId, schoolId: f.schoolAId, cepEnabled: false, effectiveFrom: first },
+    });
+    await expect(monthlyClaimFigures(f.superAdmin, { month: monthValue, now: today })).resolves.toMatchObject({ status: "unavailable_non_cep" });
+
+    await prisma.pricingConfig.update({
+      where: { id: schoolOverride.id },
+      data: { cancelledAt: new Date(), cancelledByUserId: f.cashierId },
+    });
+    await expect(monthlyClaimFigures(f.superAdmin, { month: monthValue, now: today })).resolves.toMatchObject({ status: "available" });
+  });
+
+  it("keeps a past free-meals month available even when today's configuration is off", async () => {
+    const f = await fresh();
+    const now = new Date("2026-08-15T16:00:00.000Z");
+    await prisma.pricingConfig.create({
+      data: {
+        districtId: f.districtId,
+        schoolId: null,
+        cepEnabled: false,
+        effectiveFrom: new Date("2026-08-15T00:00:00.000Z"),
+      },
+    });
+    await expect(monthlyClaimFigures(f.superAdmin, { month: "2026-07", now })).resolves.toMatchObject({ status: "available" });
+    await expect(monthlyClaimFigures(f.superAdmin, { month: "2026-08", now })).resolves.toMatchObject({ status: "unavailable_non_cep" });
+  });
+
+  it("enforces staff roles and school scope", async () => {
+    const f = await fresh();
+    const today = utcToday();
+    const scoped = await monthlyClaimFigures(f.schoolStaffA, {
+      month: today.toISOString().slice(0, 7),
+      now: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16)),
+    });
+    if (scoped.status !== "available") throw new Error("Expected available claim figures");
+    expect(scoped.schools).toHaveLength(1);
+    expect(scoped.schools[0]!.schoolId).toBe(f.schoolAId);
+
+    await expect(monthlyClaimFigures(f.cashier, { month: today.toISOString().slice(0, 7) })).rejects.toBeInstanceOf(AuthError);
+    await expect(monthlyClaimFigures(f.guardian, { month: today.toISOString().slice(0, 7) })).rejects.toBeInstanceOf(AuthError);
   });
 });
 
