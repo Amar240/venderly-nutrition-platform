@@ -3,7 +3,7 @@
  * output. Keep this module presentation-free so server serializers can import it.
  */
 export const PROTOTYPE_BANNER_TEXT =
-  "PROTOTYPE — SYNTHETIC DATA. Not connected to Infinite Campus, PCS, or live payment processing.";
+  "Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing.";
 
 /*
  * D-21: the deeper meal-history seed keeps 200 synthetic students rather than

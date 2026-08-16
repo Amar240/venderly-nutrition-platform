@@ -171,7 +171,7 @@ async function buildHouseholdChild(input: {
     });
     if (missingLunches >= 3) {
       const patternReassurance = lunchPriceCents === 0
-        ? "Lunch is free every day — nothing needs to be paid."
+        ? "Lunch is free every day, so nothing needs to be paid."
         : status === "low" || status === "negative"
           ? reassurance
           : undefined;

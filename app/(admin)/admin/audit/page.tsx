@@ -77,7 +77,7 @@ export default async function AuditViewerPage({
                   {auditSubjectLabel(e.subjectType)}
                   {e.subjectId ? <span className="block text-xs">#{e.subjectId.slice(-6)}</span> : null}
                 </td>
-                <td className="px-4 py-3 text-ink-muted">{e.reason ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted">{e.reason ?? "None given"}</td>
               </tr>
             ))}
             {entries.length === 0 && (

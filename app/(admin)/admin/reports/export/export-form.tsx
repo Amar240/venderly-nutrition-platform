@@ -45,7 +45,7 @@ export function ExportForm({ schools }: ExportFormProps) {
       link.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setError("You've lost your connection. Nothing was lost — try again when you're back online.");
+      setError("You've lost your connection. Nothing was lost. Try again when you're back online.");
     } finally {
       setBusy(false);
     }

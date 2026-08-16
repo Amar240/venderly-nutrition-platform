@@ -30,7 +30,7 @@ export function DemoCredentials({
           <p className="mt-1 text-ink-muted">
             Staff accounts are protected by a second factor. So you don&apos;t need an
             authenticator app to look around, the current code is shown here. It
-            changes every 30 seconds — if one is rejected, reload for a fresh code.
+            changes every 30 seconds, so if one is rejected, reload for a fresh code.
           </p>
 
           <p className="mt-3">

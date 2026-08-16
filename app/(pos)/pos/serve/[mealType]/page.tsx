@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { MealType } from "@prisma/client";
 import { MealEntry } from "./meal-entry";
+import { DemoStudents } from "./demo-students";
 import { getAppSession } from "@/server/auth/session";
 import { listRosterClasses } from "@/server/meals/roster";
 import { LinkButton } from "@/components/ui/link-button";
@@ -24,6 +25,7 @@ export default async function ServePage({ params }: { params: { mealType: string
       <div className="mt-4">
         <MealEntry mealType={meal.type} label={meal.label} />
       </div>
+      <DemoStudents />
       {classes.length > 0 && (
         <div className="mx-auto mt-6 max-w-md border-t border-border pt-4">
           <LinkButton

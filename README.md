@@ -2,7 +2,7 @@
 
 Demo-ready pilot of a school nutrition platform for Venderly to present to Woodbridge School District. Synthetic data only.
 
-**PROTOTYPE — SYNTHETIC DATA. Not connected to Infinite Campus, PCS, or live payment processing.**
+**Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing.**
 
 ## Start here
 1. `CLAUDE.md` — frozen conventions. Read before writing any code.

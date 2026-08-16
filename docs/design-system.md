@@ -62,7 +62,7 @@ Columns: date, description, type badge, amount, running balance, actor. Correcti
 Blocks any adjustment, reallocation, refund, or override. Required free-text reason, minimum length enforced server-side. Cannot be dismissed by clicking outside. Focus trapped, returns focus to trigger on close.
 
 ### Prototype banner
-Persistent, top of every layout, on every surface including printed and exported output. Exact text: `PROTOTYPE — SYNTHETIC DATA. Not connected to Infinite Campus, PCS, or live payment processing.`
+Persistent, top of every layout, on every surface including printed and exported output. Exact text: `Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing.`
 
 ## Accessibility rules (non-negotiable)
 - Every interactive element reachable and operable by keyboard, in visual order.

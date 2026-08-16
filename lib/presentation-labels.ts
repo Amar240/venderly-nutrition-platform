@@ -6,7 +6,7 @@ export const TRUST_COPY = {
   ignoredColumns:
     "3 columns were ignored: date of birth, race, and gender. This system doesn't store them.",
   claimFigures:
-    "These are your figures to check and submit. This system doesn't file claims and isn't your official counting record — PCS still is, unless the district decides otherwise.",
+    "These are your figures to check and submit. This system doesn't file claims and isn't your official counting record. PCS still is, unless the district decides otherwise.",
   mayBeNothing: "This may be nothing.",
 };
 
@@ -187,7 +187,7 @@ export function formatMoneyHistoryEntry(input: MoneyHistoryFormatInput): MoneyHi
   }
 
   const connection = input.corrects
-    ? `Corrects: ${input.corrects.summary} · ${formatHistoryDateTime(input.corrects.createdAt, input.timeZone)} · ${moneySentenceAmount(input.corrects.amountCents)} — the original remains in history.`
+    ? `Corrects: ${input.corrects.summary} · ${formatHistoryDateTime(input.corrects.createdAt, input.timeZone)} · ${moneySentenceAmount(input.corrects.amountCents)}. The original remains in history.`
     : null;
 
   return {

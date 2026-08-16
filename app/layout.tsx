@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Woodbridge Nutrition Platform",
   description:
-    "PROTOTYPE — SYNTHETIC DATA. School nutrition, family payments, and cafeteria operations pilot.",
+    "Prototype with synthetic data. School nutrition, family payments, and cafeteria operations pilot.",
 };
 
 export default function RootLayout({

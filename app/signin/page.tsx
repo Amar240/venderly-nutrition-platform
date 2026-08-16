@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getAppSession } from "@/server/auth/session";
 import { roleHome } from "@/server/auth/navigation";
@@ -30,6 +31,24 @@ export default async function SignInPage() {
           <SignInForm />
         </div>
         <DemoCredentials hints={demoHints} password={demoPassword} />
+
+        {/*
+          Attribution sits below the card rather than above the heading: the
+          district's name leads, the vendor's closes. "Built by" is a plain
+          authorship statement — it claims no adoption or endorsement by
+          Woodbridge, which a sign-in screenshot could otherwise imply.
+        */}
+        <footer className="mt-8 flex items-center justify-center gap-2">
+          <span className="text-xs text-ink-muted">Built by</span>
+          <Image
+            src="/venderly-logo.png"
+            alt="Venderly"
+            width={1230}
+            height={500}
+            priority={false}
+            className="h-6 w-auto"
+          />
+        </footer>
       </div>
     </div>
   );

@@ -68,7 +68,7 @@ describe("presentation labels", () => {
       timeZone: "America/New_York",
     });
     expect(item.activity).toBe('Casey Nguyen gave back $1.25 for Cookie. Reason: "Snack was returned"');
-    expect(item.connection).toBe("Corrects: Cookie · Aug 15, 2026, 8:04 AM · -$1.25 — the original remains in history.");
+    expect(item.connection).toBe("Corrects: Cookie · Aug 15, 2026, 8:04 AM · -$1.25. The original remains in history.");
     expect(item.reason).toBe("Snack was returned");
   });
 

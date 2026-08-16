@@ -1,7 +1,7 @@
 # Woodbridge Nutrition Platform — Pilot
 
 ## What this is
-A demo-ready pilot of a school nutrition platform for Venderly to present to Woodbridge School District. Synthetic data only. Not production. Every screen must show a persistent banner: **PROTOTYPE — SYNTHETIC DATA. Not connected to Infinite Campus, PCS, or live payment processing.**
+A demo-ready pilot of a school nutrition platform for Venderly to present to Woodbridge School District. Synthetic data only. Not production. Every screen must show a persistent banner: **Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing.**
 
 Three surfaces in one app: guardian portal, cafeteria POS, admin console.
 Five roles: guardian, cashier, school staff, district admin, super admin.

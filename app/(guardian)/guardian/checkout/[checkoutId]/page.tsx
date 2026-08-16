@@ -28,7 +28,7 @@ export default async function CheckoutPage({
       <div className="rounded-card border border-border bg-surface-card p-6">
         <div className="flex items-center gap-2 rounded-control bg-brand-wash px-3 py-2 text-xs text-ink-muted">
           <InfoIcon className="shrink-0 text-brand" />
-          Simulated hosted checkout — no real card is charged.
+          Simulated hosted checkout. No real card is charged.
         </div>
 
         <h1 className="mt-4 text-xl font-medium text-ink">Review your deposit</h1>

@@ -207,6 +207,6 @@ describe.skipIf(!dbUp)("guardian household meal read model", () => {
       new Date("2026-08-15T17:30:00.000Z"),
     );
     expect(rows[0]!.pattern?.line).toBe("No lunch recorded for Marcus on 3 of the last 5 school days.");
-    expect(rows[0]!.warnings).toContain("Lunch is free every day — nothing needs to be paid.");
+    expect(rows[0]!.warnings).toContain("Lunch is free every day, so nothing needs to be paid.");
   });
 });

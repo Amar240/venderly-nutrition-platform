@@ -226,7 +226,7 @@ export default async function ClaimPackPage({
               </p>
               <p className="mt-1 text-ink-muted">
                 {item.reviewedAt
-                  ? `Reviewed by ${item.reviewedByName} · ${dateKey(item.reviewedAt)}${item.reviewNote ? ` — "${item.reviewNote}"` : ""}`
+                  ? `Reviewed by ${item.reviewedByName} · ${dateKey(item.reviewedAt)}${item.reviewNote ? `. Note: "${item.reviewNote}"` : ""}`
                   : "Not yet reviewed."}
               </p>
             </div>
@@ -262,7 +262,7 @@ export default async function ClaimPackPage({
                   </td>
                   <td className="px-4 py-3 text-ink">{correctionSituationLabel(c.situation)}</td>
                   <td className="px-4 py-3 text-ink">{c.reason}</td>
-                  <td className="px-4 py-3 text-ink-muted">{c.actorName ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-muted">{c.actorName ?? "Not recorded"}</td>
                   <td className="px-4 py-3 text-ink-muted">
                     {c.status === "COMPLETED" ? `Completed${c.completedByName ? ` by ${c.completedByName}` : ""}` : c.status === "FOLLOW_UP_REQUIRED" ? "Follow-up required" : "Pending"}
                   </td>

@@ -41,7 +41,7 @@ export function ImportUploader() {
       }
       setResult((await res.json()) as ImportResult);
     } catch {
-      setError("You've lost your connection. Nothing was lost — try again when you're back online.");
+      setError("You've lost your connection. Nothing was lost. Try again when you're back online.");
     } finally {
       setBusy(false);
     }
@@ -144,7 +144,7 @@ function ResultPanel({ result, onConfirm, busy }: { result: ImportResult; onConf
           <tbody>
             {result.errors.map((e, i) => (
               <tr key={i} className="border-b border-border last:border-0">
-                <td className="px-3 py-2 tabular text-ink-muted">{e.row ?? "—"}</td>
+                <td className="px-3 py-2 tabular text-ink-muted">{e.row ?? "None"}</td>
                 <td className="px-3 py-2 text-ink-muted">{e.field ?? "file"}</td>
                 <td className="px-3 py-2 text-ink">{e.message}</td>
               </tr>

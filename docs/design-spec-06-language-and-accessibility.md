@@ -131,4 +131,4 @@ Sentences that appear verbatim in the product because they carry the product's p
 - "3 columns were ignored: date of birth, race, and gender. This system doesn't store them."
 - "These are your figures to check and submit. This system doesn't file claims."
 - "This may be nothing."
-- "PROTOTYPE — SYNTHETIC DATA. Not connected to Infinite Campus, PCS, or live payment processing."
+- "Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing."

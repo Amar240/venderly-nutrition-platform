@@ -129,11 +129,11 @@ export default async function EditCheckReportPage({
                     </td>
                     <td className="px-4 py-3">
                       {!row.needsAttention ? (
-                        <span className="text-ink-muted">—</span>
+                        <span className="text-ink-muted">Not reviewed</span>
                       ) : row.reviewedAt ? (
                         <p className="text-ink-muted">
                           Reviewed by {row.reviewedByName} · {dateKey(row.reviewedAt)}
-                          {row.reviewNote ? ` — "${row.reviewNote}"` : ""}
+                          {row.reviewNote ? `. Note: "${row.reviewNote}"` : ""}
                         </p>
                       ) : (
                         <form action={markExceptionReviewedAction} className="flex flex-wrap items-end gap-2">

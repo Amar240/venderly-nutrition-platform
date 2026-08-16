@@ -71,6 +71,65 @@ export async function searchStudents(
   }));
 }
 
+export interface StudentBrowsePage {
+  students: StudentSearchResult[];
+  total: number;
+  shown: number;
+}
+
+/**
+ * The first page of students in scope, for browsing rather than searching.
+ *
+ * Search assumes you already know a number or a name. Someone meeting the
+ * roster for the first time does not, and an empty box with no starting point
+ * is a dead end. This lists what is there, scoped exactly as search is.
+ *
+ * Same D-1 position as `searchStudents`: no `StudentPricing` read, so no
+ * eligibility tier can reach this page.
+ */
+export async function browseStudents(
+  session: AppSession | null | undefined,
+  limit = 50,
+): Promise<StudentBrowsePage> {
+  requireStaff(session);
+  const scope = scopeToSchools(session);
+
+  const where = {
+    districtId: scope.districtId,
+    ...(scope.schoolId ? { schoolId: scope.schoolId } : {}),
+    enrollmentStatus: "ACTIVE" as const,
+  };
+
+  const [students, total] = await Promise.all([
+    prisma.student.findMany({
+      where,
+      select: {
+        id: true,
+        studentNumber: true,
+        firstName: true,
+        lastName: true,
+        grade: true,
+        school: { select: { name: true } },
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take: limit,
+    }),
+    prisma.student.count({ where }),
+  ]);
+
+  return {
+    students: students.map((s) => ({
+      id: s.id,
+      studentNumber: s.studentNumber,
+      name: `${s.firstName} ${s.lastName}`,
+      grade: s.grade,
+      schoolName: s.school.name,
+    })),
+    total,
+    shown: students.length,
+  };
+}
+
 export interface AdminGuardian {
   name: string;
   email: string;

@@ -83,7 +83,7 @@ export default async function ClaimFiguresPage({
                     {item.reviewedAt ? (
                       <p className="mt-1 text-ink-muted">
                         Reviewed by {item.reviewedByName} · {dateKey(item.reviewedAt)}
-                        {item.reviewNote ? ` — "${item.reviewNote}"` : ""}
+                        {item.reviewNote ? `. Note: "${item.reviewNote}"` : ""}
                       </p>
                     ) : null}
                     <Link
