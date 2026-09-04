@@ -24,17 +24,17 @@ Add `-d` to run in the background: `docker compose up --build -d`.
 ```bash
 docker compose exec app npm run logins
 ```
-Password for every account: `Woodbridge!Demo1`. Guardians sign in with no code;
+Password for every account: `Demo!Pass1`. Guardians sign in with no code;
 staff need the printed 6-digit authenticator code.
 
 The evaluator set has four logins:
 
 | Label | Email | Surface |
 |---|---|---|
-| Guardian | `guardian@woodbridge.demo` | Family portal |
-| Cashier | `cashier@woodbridge.demo` | Cafeteria POS |
-| Staff | `districtadmin@woodbridge.demo` | Admin console with district-wide staff access |
-| Super admin | `superadmin@woodbridge.demo` | Admin console with configuration access |
+| Guardian | `guardian@nutrition.demo` | Family portal |
+| Cashier | `cashier@nutrition.demo` | Cafeteria POS |
+| Staff | `districtadmin@nutrition.demo` | Admin console with district-wide staff access |
+| Super admin | `superadmin@nutrition.demo` | Admin console with configuration access |
 
 For presentation environments, prefer stable authenticator entries instead of
 printing fresh secrets during the demo. Set these environment variables before

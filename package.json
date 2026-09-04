@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
+    "seed:woodbridge": "SEED_DISTRICT=woodbridge tsx prisma/seed.ts",
     "fixtures:generate": "tsx fixtures/generate.ts",
     "demo:reset": "npm run seed && npm run fixtures:generate",
     "logins": "tsx scripts/logins.ts",

@@ -213,7 +213,7 @@ describe.skipIf(!dbUp)("staff user management", () => {
     // A disabled user cannot authenticate even with the right password + TOTP.
     resetIpLimiter();
     const code = authenticator.generate(disabled.totpSecret!);
-    const result = await authenticate({ email, password: process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1", totp: code, ip: `ip-${crypto.randomUUID()}` });
+    const result = await authenticate({ email, password: process.env.SEED_DEMO_PASSWORD ?? "Demo!Pass1", totp: code, ip: `ip-${crypto.randomUUID()}` });
     expect(result.ok).toBe(false);
 
     // Reversible.

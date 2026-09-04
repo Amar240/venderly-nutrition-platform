@@ -1,5 +1,6 @@
 import { requireSurface } from "@/server/auth/guardLayout";
 import { getSessionIdentity } from "@/server/auth/identity";
+import { APP_BRAND_NAME } from "@/lib/prototype";
 import { SurfaceShell, type NavItem } from "@/components/surface-shell";
 
 const NAV: NavItem[] = [
@@ -16,6 +17,7 @@ export default async function PosLayout({
   const identity = await getSessionIdentity(session);
   return (
     <SurfaceShell
+      brandName={APP_BRAND_NAME}
       surface="pos"
       surfaceLabel="Cafeteria POS"
       identityLabel={identity.name}

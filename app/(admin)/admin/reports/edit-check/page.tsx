@@ -35,7 +35,7 @@ function formatPercent(basisPoints: number): string {
 function percentageSourceLabel(provenance: "FNS_FEDERAL_DEFAULT" | "APPROVED_LOCAL"): string {
   return provenance === "FNS_FEDERAL_DEFAULT"
     ? "FNS federal default"
-    : "approved Delaware or Woodbridge value";
+    : "approved state or district value";
 }
 
 export default async function EditCheckReportPage({
@@ -87,7 +87,7 @@ export default async function EditCheckReportPage({
             <InfoIcon className="mt-1 shrink-0 text-brand" />
             <div className="space-y-2 text-sm">
               <p>
-                Ceilings use the {formatPercent(report.factorBps)}% {percentageSourceLabel(report.factorProvenance)} and are rounded down to a whole meal. Woodbridge should confirm whether Delaware or the district has an approved local percentage to use instead.
+                Ceilings use the {formatPercent(report.factorBps)}% {percentageSourceLabel(report.factorProvenance)} and are rounded down to a whole meal. Confirm whether your state agency or the district has an approved local percentage to use instead.
               </p>
               <p>{TRUST_COPY.claimFigures}</p>
             </div>
@@ -129,7 +129,7 @@ export default async function EditCheckReportPage({
                     </td>
                     <td className="px-4 py-3">
                       {!row.needsAttention ? (
-                        <span className="text-ink-muted">Not reviewed</span>
+                        <span className="text-ink-muted">No review needed</span>
                       ) : row.reviewedAt ? (
                         <p className="text-ink-muted">
                           Reviewed by {row.reviewedByName} · {dateKey(row.reviewedAt)}

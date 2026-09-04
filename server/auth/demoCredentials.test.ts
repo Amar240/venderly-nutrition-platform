@@ -43,7 +43,10 @@ describe("demo sign-in hints", () => {
     const emails = allowlist.match(/"[^"]+@[^"]+"/g) ?? [];
     expect(emails).toHaveLength(4);
     for (const email of emails) {
-      expect(email).toMatch(/@woodbridge\.demo"$/);
+      // The property that matters is not which domain, but that every entry is
+      // a .demo address: no deliverable mailbox, so no real person's account
+      // can ever end up on a page that prints live second-factor codes.
+      expect(email).toMatch(/\.demo"$/);
     }
   });
 });

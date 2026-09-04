@@ -116,7 +116,7 @@ export function PricingForm({ current, scheduled, counts, compliance, today }: P
             <span>
               <span className="block font-medium text-ink">Free meals for all students is on</span>
               <span className="mt-1 block text-sm text-ink-muted">
-                Breakfast and lunch cost nothing for every student, whatever their category. Snacks are still charged. This is how Woodbridge runs today.
+                Breakfast and lunch cost nothing for every student, whatever their category. Snacks are still charged. This is how the district runs today.
               </span>
             </span>
           </label>
@@ -256,7 +256,7 @@ export function PricingForm({ current, scheduled, counts, compliance, today }: P
               value="APPROVED_LOCAL"
               defaultChecked={compliance.stateAttendanceFactorProvenance === "APPROVED_LOCAL"}
             />
-            <span>Approved Delaware or Woodbridge value</span>
+            <span>Approved state or district value</span>
           </label>
         </fieldset>
         <div className="space-y-1">

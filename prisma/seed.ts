@@ -1,6 +1,7 @@
 /**
  * Synthetic seed — idempotent (full reset + reload). Produces:
- *  - 1 district, 6 real Woodbridge schools with proportional synthetic enrollment
+ *  - 1 district, 6 schools with proportional synthetic enrollment
+ *    (SEED_DISTRICT=woodbridge swaps the demo names for the Woodbridge set)
  *  - 200 students in multi-child households with differing surnames
  *  - guardians linked via GuardianStudent, accounts with varied balances
  *    (balances derive from opening ledger entries; cached balanceCents matches)
@@ -27,6 +28,7 @@ import { countServedMeals } from "../server/meals/mealCounts";
 import { editCheckReport } from "../server/reports/editCheck";
 import { districtToday } from "../server/time/district";
 import {
+  activeDistrictName,
   addUtcDays,
   buildMealHistoryCalendar,
   buildRemainingSchoolSlots,
@@ -43,12 +45,12 @@ import {
   WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
   WOODBRIDGE_CLASSROOMS,
   WOODBRIDGE_MEAL_PARTICIPATION,
-  WOODBRIDGE_SEED_SCHOOLS,
+  SEED_SCHOOLS,
 } from "./seed-data";
 
 const prisma = new PrismaClient();
 
-const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1";
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo!Pass1";
 const STAFF_TOTP_ENV: Partial<Record<Role, string | undefined>> = {
   CASHIER: process.env.SEED_TOTP_CASHIER,
   SCHOOL_STAFF: process.env.SEED_TOTP_SCHOOL_STAFF,
@@ -56,9 +58,9 @@ const STAFF_TOTP_ENV: Partial<Record<Role, string | undefined>> = {
   SUPER_ADMIN: process.env.SEED_TOTP_SUPER_ADMIN,
 };
 const EVALUATOR_STAFF_LABELS: Record<string, string> = {
-  "cashier@woodbridge.demo": "Cashier",
-  "districtadmin@woodbridge.demo": "Staff",
-  "superadmin@woodbridge.demo": "Super admin",
+  "cashier@nutrition.demo": "Cashier",
+  "districtadmin@nutrition.demo": "Staff",
+  "superadmin@nutrition.demo": "Super admin",
 };
 
 // --- deterministic RNG so reloads reproduce the same dataset ---------------
@@ -104,6 +106,8 @@ async function reset() {
   await prisma.pricingConfig.deleteMany();
   await prisma.importRun.deleteMany();
   await prisma.auditLog.deleteMany();
+  // Holds foreign keys to both User and School, so it has to go before either.
+  await prisma.editCheckReview.deleteMany();
   await prisma.userSchool.deleteMany();
   await prisma.user.deleteMany();
   await prisma.student.deleteMany();
@@ -439,7 +443,7 @@ async function seedDeepHistory(input: {
     else mealRows.delete(key);
   }
 
-  // Edit-check fixture: Woodbridge Middle has 43 active students, so 42 live
+  // Edit-check fixture: the middle school has 43 active students, so 42 live
   // lunches are roughly 97% participation and two above the floor ceiling of
   // 40. It is high but possible—never an impossible duplicate count.
   const middleStudents = studentsBySchool.get("7750") ?? [];
@@ -605,7 +609,7 @@ async function seedDeepHistory(input: {
     data: {
       districtId: input.districtId,
       source: "woodbridge-student-list.csv",
-      operator: "superadmin@woodbridge.demo",
+      operator: "superadmin@nutrition.demo",
       checksum: "synthetic-stale-roster-nine-days",
       status: "committed",
       updatedCount: DEMO_STUDENT_COUNT,
@@ -666,7 +670,7 @@ async function verifyDeepSeed(input: {
   assertSeed(exceptions.length === 1, `exactly one edit-check exception must exist, found ${exceptions.length}`);
   const exception = exceptions[0]!;
   const middle = input.schools.find((school) => school.code === "7750")!;
-  assertSeed(exception.schoolId === middle.id, "the edit-check exception must belong to Woodbridge Middle");
+  assertSeed(exception.schoolId === middle.id, "the edit-check exception must belong to the middle school");
   assertSeed(exception.mealType === "LUNCH", "the edit-check exception must be lunch");
   assertSeed(dateKey(exception.serviceDate) === dateKey(input.fixture.breachDate), "the edit-check exception date must match the planted breach");
   assertSeed(exception.claimedCount === 42 && exception.ceiling === 40, "the planted breach must be 42 lunches against a ceiling of 40");
@@ -842,7 +846,7 @@ async function main() {
 
   const district = await prisma.district.create({
     data: {
-      name: "Woodbridge School District",
+      name: activeDistrictName(),
       identifiedStudentPercentageBps: WOODBRIDGE_IDENTIFIED_STUDENT_PERCENTAGE_BPS,
       // FNS federal default; no Delaware-specific published percentage was found.
       stateAttendanceFactorBps: WOODBRIDGE_FNS_FEDERAL_DEFAULT_ATTENDANCE_FACTOR_BPS,
@@ -867,7 +871,7 @@ async function main() {
   }
 
   const schools = [];
-  for (const spec of WOODBRIDGE_SEED_SCHOOLS) {
+  for (const spec of SEED_SCHOOLS) {
     const school = await prisma.school.create({
       data: {
         districtId: district.id,
@@ -902,7 +906,7 @@ async function main() {
   // --- Featured demo guardian: 2 children, DIFFERING surnames, healthy ------
   const demoGuardian = await prisma.guardian.create({
     data: {
-      email: "guardian@woodbridge.demo",
+      email: "guardian@nutrition.demo",
       passwordHash: guardianPasswordHash,
       firstName: "Dana",
       lastName: "Whitfield",
@@ -969,7 +973,7 @@ async function main() {
 
   const posDemoGuardian = await prisma.guardian.create({
     data: {
-      email: "posdemo@woodbridge.demo",
+      email: "posdemo@nutrition.demo",
       passwordHash: guardianPasswordHash,
       firstName: "Taylor",
       lastName: "Bell",
@@ -1019,7 +1023,7 @@ async function main() {
   let studentCount = 7; // Ella, Marcus, and reserved Wheatley POS students 100003-100007
   let householdIndex = 0;
   const remainingSchoolSlots = buildRemainingSchoolSlots({
-    schools: WOODBRIDGE_SEED_SCHOOLS,
+    schools: SEED_SCHOOLS,
     alreadyAssignedByCode: { "0779": 6, "7750": 1 },
     seed: 20260815,
   });
@@ -1098,10 +1102,10 @@ async function main() {
     schoolIds: string[];
   }
   const staffSpecs: StaffSpec[] = [
-    { email: "cashier@woodbridge.demo", firstName: "Casey", lastName: "Nguyen", role: "CASHIER", schoolIds: [wheatley.id] },
-    { email: "staff@woodbridge.demo", firstName: "Sam", lastName: "Patel", role: "SCHOOL_STAFF", schoolIds: [wheatley.id] },
-    { email: "districtadmin@woodbridge.demo", firstName: "Drew", lastName: "Garcia", role: "DISTRICT_ADMIN", schoolIds: schools.map((s) => s.id) },
-    { email: "superadmin@woodbridge.demo", firstName: "Robin", lastName: "Osei", role: "SUPER_ADMIN", schoolIds: schools.map((s) => s.id) },
+    { email: "cashier@nutrition.demo", firstName: "Casey", lastName: "Nguyen", role: "CASHIER", schoolIds: [wheatley.id] },
+    { email: "staff@nutrition.demo", firstName: "Sam", lastName: "Patel", role: "SCHOOL_STAFF", schoolIds: [wheatley.id] },
+    { email: "districtadmin@nutrition.demo", firstName: "Drew", lastName: "Garcia", role: "DISTRICT_ADMIN", schoolIds: schools.map((s) => s.id) },
+    { email: "superadmin@nutrition.demo", firstName: "Robin", lastName: "Osei", role: "SUPER_ADMIN", schoolIds: schools.map((s) => s.id) },
   ];
 
   const staffPasswordHash = await hash(DEMO_PASSWORD);
@@ -1130,7 +1134,7 @@ async function main() {
     if (spec.role === "SUPER_ADMIN") superAdminUserId = user.id;
     if (spec.role === "CASHIER") cashierUserId = user.id;
     if (spec.role === "DISTRICT_ADMIN") districtAdminUserId = user.id;
-    if (spec.email === "staff@woodbridge.demo") legacySchoolStaffUserId = user.id;
+    if (spec.email === "staff@nutrition.demo") legacySchoolStaffUserId = user.id;
     const evaluatorLabel = EVALUATOR_STAFF_LABELS[spec.email];
     if (evaluatorLabel) {
       staffCreds.push({
@@ -1316,14 +1320,14 @@ async function main() {
   console.log("\n================ SEED COMPLETE ================");
   console.log(`District: ${district.name}`);
   console.log(`Schools: ${schools.length}  Students: ${totalStudents}  Guardians: ${totalGuardians}`);
-  console.log(`Classrooms: ${WOODBRIDGE_CLASSROOMS.length} across ECEC and Phillis Wheatley`);
+  console.log(`Classrooms: ${WOODBRIDGE_CLASSROOMS.length} across the two roster-mode schools`);
   console.log(`Meal-history seed: ${MEAL_HISTORY_SEED}`);
   console.log(`Operating days: ${deepHistory.operatingDays.length} (${deepHistory.closureDays.length} synthetic closures)`);
   for (const row of deepSummary.schoolMealTotals) {
     console.log(`  ${row.schoolName}: ${row.breakfasts} breakfasts, ${row.lunches} lunches`);
   }
   console.log(
-    `Edit-check fixture: ${dateKey(deepHistory.breachDate)} at Woodbridge Middle — ` +
+    `Edit-check fixture: ${dateKey(deepHistory.breachDate)} at ${middle.name}: ` +
     `${deepSummary.breachClaimed} lunches, ceiling ${deepSummary.breachCeiling}, ` +
     `${deepSummary.breachClaimed - deepSummary.breachCeiling} over`,
   );
@@ -1357,12 +1361,12 @@ async function main() {
     console.log("\nShared demo password: withheld from deployed logs — run `npm run logins` locally.");
   }
   console.log("\nEvaluator logins:");
-  console.log("  Guardian — guardian@woodbridge.demo — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
-  console.log("  Cashier  — cashier@woodbridge.demo");
-  console.log("  Staff    — districtadmin@woodbridge.demo");
-  console.log("  Super admin — superadmin@woodbridge.demo");
+  console.log("  Guardian — guardian@nutrition.demo — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
+  console.log("  Cashier  — cashier@nutrition.demo");
+  console.log("  Staff    — districtadmin@nutrition.demo");
+  console.log("  Super admin — superadmin@nutrition.demo");
   console.log("\nGuardian sign-in is single factor, no code needed:");
-  console.log("  guardian@woodbridge.demo  — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
+  console.log("  guardian@nutrition.demo  — Dana Whitfield (2 children: Ella Whitfield, Marcus Okafor)");
   console.log("  POS demo: 100003/100004 record cleanly, 100001 is duplicate lunch, 100002 is wrong school");
   console.log("\nStaff sign-in (require 6-digit authenticator code):");
   for (const c of staffCreds) {

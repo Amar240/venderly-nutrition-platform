@@ -26,7 +26,7 @@ describe("TOTP second factor (staff MFA)", () => {
 
   it("builds an otpauth enrolment URI", () => {
     const secret = generateTotpSecret();
-    const uri = totpAuthUri(secret, "cashier@woodbridge.demo");
+    const uri = totpAuthUri(secret, "cashier@nutrition.demo");
     expect(uri).toContain("otpauth://totp/");
     expect(uri).toContain(secret);
   });

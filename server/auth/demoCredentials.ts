@@ -28,17 +28,17 @@ import { currentTotpToken } from "@/server/auth/totp";
  */
 
 const DEMO_EMAILS = [
-  "guardian@woodbridge.demo",
-  "cashier@woodbridge.demo",
-  "districtadmin@woodbridge.demo",
-  "superadmin@woodbridge.demo",
+  "guardian@nutrition.demo",
+  "cashier@nutrition.demo",
+  "districtadmin@nutrition.demo",
+  "superadmin@nutrition.demo",
 ] as const;
 
 const DEMO_LABELS: Record<string, string> = {
-  "guardian@woodbridge.demo": "Guardian",
-  "cashier@woodbridge.demo": "Cashier",
-  "districtadmin@woodbridge.demo": "District admin",
-  "superadmin@woodbridge.demo": "Super admin",
+  "guardian@nutrition.demo": "Guardian",
+  "cashier@nutrition.demo": "Cashier",
+  "districtadmin@nutrition.demo": "District admin",
+  "superadmin@nutrition.demo": "Super admin",
 };
 
 export interface DemoSignInHint {
@@ -64,7 +64,7 @@ export async function demoSignInHints(): Promise<DemoSignInHint[]> {
   });
 
   const guardian = await prisma.guardian.findUnique({
-    where: { email: "guardian@woodbridge.demo" },
+    where: { email: "guardian@nutrition.demo" },
     select: { email: true },
   });
 

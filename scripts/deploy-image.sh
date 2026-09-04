@@ -66,15 +66,15 @@ Pushed successfully.
 
   ${IMAGE}
 
-Next: point the ECS task definition at this exact tag.
-  ECS -> Task definitions -> default-woodbridge-nutrition
-    -> Create new revision -> Image URI (paste the line above)
-    -> Create
-  ECS -> Clusters -> default -> woodbridge-nutrition
-    -> Update service -> pick the new revision -> Update
+Next: point the App Runner service at this exact tag.
+  App Runner -> Services -> woodbridge-nutrition
+    -> Configuration -> Edit
+    -> Container image URI (paste the line above)
+    -> Save and deploy
 
-Then watch: ECS -> service -> Logs, for
-  > next start -p 3001 -H 0.0.0.0
-  - Network: http://0.0.0.0:3001
+The service is https://h3kftp3qtj.us-east-2.awsapprunner.com
+
+Then watch the service Logs for:
+  [AppRunner] Health check is successful. Routing traffic to application.
 ============================================================
 EOF

@@ -11,6 +11,8 @@ export interface NavItem {
 
 interface SurfaceShellProps {
   surface: Surface;
+  /** The district's own name, read from the database by each layout. */
+  brandName: string;
   surfaceLabel: string;
   identityLabel: string;
   roleLabel: string;
@@ -26,6 +28,7 @@ interface SurfaceShellProps {
  */
 export function SurfaceShell({
   surface,
+  brandName,
   surfaceLabel,
   identityLabel,
   roleLabel,
@@ -42,7 +45,7 @@ export function SurfaceShell({
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 sm:gap-6">
             <Link href="/" className="flex min-h-touch flex-col justify-center leading-tight">
-              <span className="text-lg font-medium text-ink">Woodbridge Nutrition</span>
+              <span className="text-lg font-medium text-ink">{brandName}</span>
               <span className="text-xs text-ink-muted">{surfaceLabel}</span>
             </Link>
             {navItems.length > 0 && (

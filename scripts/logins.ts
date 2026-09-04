@@ -9,28 +9,28 @@ import { PrismaClient } from "@prisma/client";
 import { authenticator } from "otplib";
 
 const prisma = new PrismaClient();
-const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1";
+const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo!Pass1";
 
 const GUARDIAN_LOGIN = {
   label: "Guardian",
-  email: "guardian@woodbridge.demo",
+  email: "guardian@nutrition.demo",
   surface: "Guardian portal  (/guardian)",
 } as const;
 
 const STAFF_LOGINS = [
   {
     label: "Cashier",
-    email: "cashier@woodbridge.demo",
+    email: "cashier@nutrition.demo",
     surface: "Cafeteria POS    (/pos)",
   },
   {
     label: "Staff",
-    email: "districtadmin@woodbridge.demo",
+    email: "districtadmin@nutrition.demo",
     surface: "Admin console    (/admin)",
   },
   {
     label: "Super admin",
-    email: "superadmin@woodbridge.demo",
+    email: "superadmin@nutrition.demo",
     surface: "Admin console    (/admin, full config)",
   },
 ] as const;
@@ -56,7 +56,7 @@ async function main() {
   });
   const staffByEmail = new Map(staff.map((s) => [s.email, s]));
 
-  console.log("\n=============== WOODBRIDGE DEMO LOGINS ===============");
+  console.log("\n=============== DEMO LOGINS ===============");
   console.log("App:      http://localhost:3001");
   console.log(`Password: ${PASSWORD}   (same for every account)\n`);
 

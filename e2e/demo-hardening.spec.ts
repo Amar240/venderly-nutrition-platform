@@ -5,7 +5,7 @@ import { authenticator } from "otplib";
 import path from "node:path";
 
 const prisma = new PrismaClient();
-const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1";
+const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo!Pass1";
 
 test.describe.configure({ mode: "serial" });
 
@@ -65,11 +65,11 @@ async function expectTargetsAtLeast(page: Page, selector: string, min: number) {
 test("demo evaluator credentials are consolidated to four active logins", async ({ page }) => {
   const [legacyStaff, mergedStaff, schoolCount] = await Promise.all([
     prisma.user.findUniqueOrThrow({
-      where: { email: "staff@woodbridge.demo" },
+      where: { email: "staff@nutrition.demo" },
       include: { schools: { select: { schoolId: true } } },
     }),
     prisma.user.findUniqueOrThrow({
-      where: { email: "districtadmin@woodbridge.demo" },
+      where: { email: "districtadmin@nutrition.demo" },
       include: { schools: { select: { schoolId: true } } },
     }),
     prisma.school.count(),
@@ -115,7 +115,7 @@ function dateOnlyInZone(timeZone: string, now = new Date()): Date {
 
 test("guardian phone flow has banner, skip link, accessible states, deposit, and sibling transfer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signIn(page, "guardian@woodbridge.demo", /\/guardian/);
+  await signIn(page, "guardian@nutrition.demo", /\/guardian/);
   await page.getByRole("link", { name: "Skip to main content" }).focus();
   await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
   await page.keyboard.press("Enter");
@@ -150,7 +150,7 @@ test("guardian phone flow has banner, skip link, accessible states, deposit, and
 
 test("POS tablet flow is keyboard operable, announces result, and keeps 48px targets", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await signIn(page, "cashier@woodbridge.demo", /\/pos/, await staffTotp("CASHIER"));
+  await signIn(page, "cashier@nutrition.demo", /\/pos/, await staffTotp("CASHIER"));
   await page.getByRole("link", { name: "Lunch" }).click();
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
@@ -184,7 +184,7 @@ test("POS tablet flow is keyboard operable, announces result, and keeps 48px tar
 
 test("POS roster mode records and undoes one teacher class as an atomic batch", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await signIn(page, "cashier@woodbridge.demo", /\/pos/, await staffTotp("CASHIER"));
+  await signIn(page, "cashier@nutrition.demo", /\/pos/, await staffTotp("CASHIER"));
   await page.getByRole("link", { name: "Lunch" }).click();
   await page.getByRole("link", { name: "Choose a class" }).click();
   await page.getByRole("link", { name: /Priya Shah/ }).click();
@@ -236,9 +236,9 @@ test("admin laptop flow covers search, correction, export error surface, and imp
     })),
   });
 
-  await signIn(page, "superadmin@woodbridge.demo", /\/admin/, await staffTotp("SUPER_ADMIN"));
+  await signIn(page, "superadmin@nutrition.demo", /\/admin/, await staffTotp("SUPER_ADMIN"));
   await expect(page.getByRole("heading", { name: "Breakfast counts need attention" })).toBeVisible();
-  await expect(page.getByText("Breakfast counts look high at S.C.O.P.E. North. Today recorded 2 breakfasts. The most you'd expect for today is 1.")).toBeVisible();
+  await expect(page.getByText("Breakfast counts look high at Demo Learning Center North. Today recorded 2 breakfasts. The most you'd expect for today is 1.")).toBeVisible();
   await page.getByRole("link", { name: "Check today's figures" }).click();
   await expect(page.getByRole("heading", { name: "Check meal-count ceilings" })).toBeVisible();
   await expect(page.getByText("Ceilings use the 93.8% FNS federal default and are rounded down to a whole meal.")).toBeVisible();
@@ -255,7 +255,7 @@ test("admin laptop flow covers search, correction, export error surface, and imp
   await expect(page.getByText("54.82% × 1.6 = 87.7% at the free rate")).toBeVisible();
   await expect(page.getByText("This prototype contains 200 synthetic students, so these totals are not district-scale figures.")).toBeVisible();
   await expect(page.getByText("This system doesn't file claims and isn't your official counting record")).toBeVisible();
-  await expect(page.getByText(/Lunch counts look high at Woodbridge Middle/)).toBeVisible();
+  await expect(page.getByText(/Lunch counts look high at Demo Middle School/)).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Extra lunches" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);
@@ -296,9 +296,9 @@ test("admin laptop flow covers search, correction, export error surface, and imp
   await expectTargetsAtLeast(page, "a,button,input,select", 44);
 
   await page.goto("/admin/classes");
-  await page.getByLabel("School").selectOption({ label: "Phillis Wheatley Elementary" });
+  await page.getByLabel("School").selectOption({ label: "Demo Elementary School" });
   await page.getByRole("button", { name: "Show classes" }).click();
-  await expect(page.getByRole("heading", { name: "Classes at Phillis Wheatley Elementary" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Classes at Demo Elementary School" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Priya Shah" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectAxeClean(page);

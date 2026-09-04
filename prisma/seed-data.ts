@@ -22,6 +22,64 @@ export interface SeedSchoolSpec extends WoodbridgeSchoolSpec {
   seedCount: number;
 }
 
+/*
+ * Two interchangeable school sets.
+ *
+ * The DEMO set is the default: invented names for showing the product to any
+ * district. Real school names belonging to one district must never appear in a
+ * demo given to another — a prospect has no way to know the roster is
+ * synthetic, and "here are another client's schools, balances, and arrears" is
+ * the wrong first impression.
+ *
+ * The WOODBRIDGE set is kept for that specific pitch.
+ *
+ * The two sets are positionally identical: index 0 is always the early-years
+ * school that runs roster mode, index 2 always carries the edit-check breach,
+ * index 3 always holds the graduating balances, and 4 and 5 are always the tiny
+ * alternative programs that exercise small-cell handling. Every seeded fixture
+ * is pinned to a school's ROLE, not its name, so swapping sets changes only the
+ * words on screen.
+ */
+
+export const DEMO_SCHOOLS: WoodbridgeSchoolSpec[] = [
+  {
+    name: "Demo Early Learning Center",
+    code: "7760",
+    grades: ["PK", "K", "1", "2"],
+    realEnrollment: 700,
+  },
+  {
+    name: "Demo Elementary School",
+    code: "0779",
+    grades: ["3", "4", "5"],
+    realEnrollment: 648,
+  },
+  {
+    name: "Demo Middle School",
+    code: "7750",
+    grades: ["6", "7", "8"],
+    realEnrollment: 591,
+  },
+  {
+    name: "Demo High School",
+    code: "0780",
+    grades: ["9", "10", "11", "12"],
+    realEnrollment: 716,
+  },
+  {
+    name: "Demo Learning Center North",
+    code: "0781",
+    grades: ["UG"],
+    realEnrollment: 31,
+  },
+  {
+    name: "Demo Learning Center South",
+    code: "0782",
+    grades: ["UG"],
+    realEnrollment: 34,
+  },
+];
+
 export const WOODBRIDGE_SCHOOLS: WoodbridgeSchoolSpec[] = [
   {
     name: "Woodbridge Early Childhood Education Center",
@@ -61,6 +119,20 @@ export const WOODBRIDGE_SCHOOLS: WoodbridgeSchoolSpec[] = [
   },
 ];
 
+/** Districts the seed can build. `SEED_DISTRICT=woodbridge` selects the other. */
+export const DEMO_DISTRICT_NAME = "Demo School District";
+export const WOODBRIDGE_DISTRICT_NAME = "Woodbridge School District";
+
+export function activeDistrictName(): string {
+  return process.env.SEED_DISTRICT === "woodbridge"
+    ? WOODBRIDGE_DISTRICT_NAME
+    : DEMO_DISTRICT_NAME;
+}
+
+export function activeSchools(): WoodbridgeSchoolSpec[] {
+  return process.env.SEED_DISTRICT === "woodbridge" ? WOODBRIDGE_SCHOOLS : DEMO_SCHOOLS;
+}
+
 export function totalRealEnrollment(schools = WOODBRIDGE_SCHOOLS): number {
   return schools.reduce((sum, school) => sum + school.realEnrollment, 0);
 }
@@ -94,8 +166,9 @@ export function scaleEnrollmentCounts(
   }));
 }
 
-export const WOODBRIDGE_SEED_SCHOOLS = scaleEnrollmentCounts(
-  WOODBRIDGE_SCHOOLS,
+/** The set the seed will actually build, scaled to DEMO_STUDENT_COUNT. */
+export const SEED_SCHOOLS = scaleEnrollmentCounts(
+  activeSchools(),
   DEMO_STUDENT_COUNT,
 );
 

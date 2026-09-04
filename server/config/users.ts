@@ -17,7 +17,7 @@ import type { AppSession, StaffRole } from "@/server/auth/types";
  * password + a generated TOTP. Production needs an email invite with a
  * set-password link and self-enrolled TOTP — not a shared password.
  */
-const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Woodbridge!Demo1";
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo!Pass1";
 const STAFF_ROLES: StaffRole[] = ["CASHIER", "SCHOOL_STAFF", "DISTRICT_ADMIN", "SUPER_ADMIN"];
 
 export interface StaffUserRow {

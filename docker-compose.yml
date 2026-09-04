@@ -33,7 +33,7 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-woodbridge-dev}@db:5432/woodbridge
       AUTH_SECRET: ${AUTH_SECRET:-docker-demo-auth-secret-change-me}
       PAYMENT_SIM_SECRET: ${PAYMENT_SIM_SECRET:-docker-demo-payment-sim-secret}
-      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-Woodbridge!Demo1}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-Demo!Pass1}
       NODE_ENV: production
     ports:
       - "3001:3001"

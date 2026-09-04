@@ -1,6 +1,7 @@
 import { requireSurface } from "@/server/auth/guardLayout";
 import { getSessionIdentity } from "@/server/auth/identity";
 import { getUnreadCount } from "@/server/notifications/inbox";
+import { APP_BRAND_NAME } from "@/lib/prototype";
 import { SurfaceShell, type NavItem } from "@/components/surface-shell";
 
 export default async function GuardianLayout({
@@ -19,6 +20,7 @@ export default async function GuardianLayout({
   ];
   return (
     <SurfaceShell
+      brandName={APP_BRAND_NAME}
       surface="guardian"
       surfaceLabel="Guardian portal"
       identityLabel={identity.name}

@@ -3,7 +3,7 @@
  * output. Keep this module presentation-free so server serializers can import it.
  */
 export const PROTOTYPE_BANNER_TEXT =
-  "Prototype with synthetic data. Not connected to Infinite Campus, PCS, or live payment processing.";
+  "Prototype with synthetic data. Not connected to a student information system, a point-of-sale system, or live payment processing.";
 
 /*
  * D-21: the deeper meal-history seed keeps 200 synthetic students rather than
@@ -14,3 +14,10 @@ export const PROTOTYPE_BANNER_TEXT =
  */
 export const DEMO_SCALE_DISCLOSURE =
   "This prototype contains 200 synthetic students, so these totals are not district-scale figures.";
+
+/*
+ * The product name shown in the app header, the sign-in heading, and inside an
+ * authenticator app. Env-overridable so a district-branded build is a setting
+ * rather than a code change.
+ */
+export const APP_BRAND_NAME = process.env.NEXT_PUBLIC_APP_BRAND_NAME ?? "Venderly Nutrition Platform";

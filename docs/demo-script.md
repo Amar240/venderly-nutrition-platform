@@ -8,12 +8,12 @@ Read this aloud while driving the app. The production-style URL below is a place
    - Local Docker: `docker compose exec app npm run demo:reset`
    - AWS: run the documented manual reset/reseed command for the hosted app, then do not reset again between run A and run B.
 2. Confirm the authenticator app already has stable entries for:
-   - `cashier@woodbridge.demo`
-   - `superadmin@woodbridge.demo`
+   - `cashier@nutrition.demo`
+   - `superadmin@nutrition.demo`
 3. Open three Chrome profiles or windows and pre-sign in:
-   - POS: `https://<aws-demo-host>/signin`, `cashier@woodbridge.demo`, password `Woodbridge!Demo1`, authenticator code from the cashier entry.
-   - Guardian: `https://<aws-demo-host>/signin`, `guardian@woodbridge.demo`, password `Woodbridge!Demo1`, leave authenticator code blank.
-   - Admin: `https://<aws-demo-host>/signin`, `superadmin@woodbridge.demo`, password `Woodbridge!Demo1`, authenticator code from the super-admin entry.
+   - POS: `https://<aws-demo-host>/signin`, `cashier@nutrition.demo`, password `Demo!Pass1`, authenticator code from the cashier entry.
+   - Guardian: `https://<aws-demo-host>/signin`, `guardian@nutrition.demo`, password `Demo!Pass1`, leave authenticator code blank.
+   - Admin: `https://<aws-demo-host>/signin`, `superadmin@nutrition.demo`, password `Demo!Pass1`, authenticator code from the super-admin entry.
 
 Say: "This is a prototype using only synthetic data. It is not connected to Infinite Campus, PCS, or live payment processing."
 

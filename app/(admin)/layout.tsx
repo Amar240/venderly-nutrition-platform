@@ -1,5 +1,6 @@
 import { requireSurface } from "@/server/auth/guardLayout";
 import { getSessionIdentity } from "@/server/auth/identity";
+import { APP_BRAND_NAME } from "@/lib/prototype";
 import { SurfaceShell, type NavItem } from "@/components/surface-shell";
 
 export default async function AdminLayout({
@@ -31,6 +32,7 @@ export default async function AdminLayout({
 
   return (
     <SurfaceShell
+      brandName={APP_BRAND_NAME}
       surface="admin"
       surfaceLabel="Admin console"
       identityLabel={identity.name}

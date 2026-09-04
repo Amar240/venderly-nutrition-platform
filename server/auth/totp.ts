@@ -7,7 +7,7 @@ import { authenticator } from "otplib";
  */
 authenticator.options = { window: 1 };
 
-const ISSUER = "Woodbridge Nutrition";
+const ISSUER = process.env.TOTP_ISSUER ?? "Venderly Nutrition Platform";
 
 export function generateTotpSecret(): string {
   return authenticator.generateSecret();
